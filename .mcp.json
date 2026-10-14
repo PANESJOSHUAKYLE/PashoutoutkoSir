@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "mongodb": {
+      "command": "cmd",
+      "args": [
+        "/c", "npx", "-y", "mongodb-mcp-server",
+        "--connectionString", "mongodb://localhost:27017",
+        "--readOnly"
+      ]
+    }
+  }
+}

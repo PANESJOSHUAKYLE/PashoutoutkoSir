@@ -10,7 +10,9 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  ShieldCheck,
   QrCode,
+  Settings,
   Users,
   X,
 } from 'lucide-react';
@@ -35,6 +37,7 @@ const navByRole: Record<UserRole, AppNavItem[]> = {
     { label: 'My event attendance', path: '/portal?view=history', icon: ClipboardCheck },
     { label: 'Event feedback', path: '/portal?view=feedback', icon: MessageSquare },
     { label: 'My profile', path: '/portal?view=profile', icon: Users },
+    { label: 'Settings', path: '/portal?view=settings', icon: Settings },
   ],
   faculty: [
     { label: 'Dashboard', path: '/portal?view=dashboard', icon: LayoutDashboard },
@@ -44,6 +47,7 @@ const navByRole: Record<UserRole, AppNavItem[]> = {
     { label: 'Monitor assigned events', path: '/portal?view=monitor', icon: ClipboardCheck },
     { label: 'Event feedback', path: '/portal?view=feedback', icon: MessageSquare },
     { label: 'My profile', path: '/portal?view=profile', icon: Users },
+    { label: 'Settings', path: '/portal?view=settings', icon: Settings },
   ],
   admin: [
     { label: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
@@ -52,6 +56,8 @@ const navByRole: Record<UserRole, AppNavItem[]> = {
     { label: 'Event attendance', path: '/admin/attendance', icon: ClipboardCheck },
     { label: 'Event reports', path: '/admin/reports', icon: FileText },
     { label: 'Feedback & evaluations', path: '/admin/feedback', icon: MessageSquare },
+    { label: 'Account approvals', path: '/admin/approvals', icon: ShieldCheck },
+    { label: 'Settings', path: '/admin/settings', icon: Settings },
   ],
 };
 
@@ -70,7 +76,7 @@ export default function AppShell({ children, role }: AppShellProps) {
   useEffect(() => { try { localStorage.setItem(storageKey, collapsed ? '1' : '0'); } catch { /* storage may be restricted */ } }, [collapsed]);
   const activePath = `${location.pathname}${location.search}`;
   const activeItem = navItems.find(item => item.path === activePath);
-  const logout = async () => { await endSession(); navigate('/login', { replace: true }); };
+  const logout = async () => { await endSession(); navigate('/', { replace: true }); };
 
   return <div className="app-workspace min-h-screen bg-[#090b10] text-slate-100 lg:flex lg:h-screen lg:overflow-hidden">
     <a href="#main-content" className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-950 focus:translate-y-0">Skip to content</a>

@@ -71,6 +71,11 @@ DATABASES = {
     }
 }
 
+# Domain data is also copied into MongoDB so it can be viewed in Compass.
+# Django login/sessions still use SQLite; Compass shows the attendance collections.
+MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://127.0.0.1:27017")
+MONGODB_DB = os.getenv("MONGODB_DB", "cot_event_attendance")
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},

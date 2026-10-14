@@ -7,6 +7,10 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthService } from '../../data/authService';
+import { useAuth } from '../../context/AuthContext';
+import { eventApi } from '../../data/eventApi';
+import AccountApprovals from './AccountApprovals';
+import SettingsPanel from '../../components/event/SettingsPanel';
 import {
   addAttendance, addEvent, addUser, approveEvent, cancelEvent, correctAttendance,
   getAttendanceCounts, getAttendancePercentage, getFormResults, getLiveEvent,
@@ -18,7 +22,7 @@ import {
 import Button from '../../components/common/Button';
 import { StatusBadge } from '../../components/common/StatusBadge';
 
-export type AdminSection = 'dashboard' | 'users' | 'events' | 'attendance' | 'reports' | 'feedback';
+export type AdminSection = 'dashboard' | 'users' | 'events' | 'attendance' | 'reports' | 'feedback' | 'approvals' | 'settings';
 
 type UserForm = {
   id?: string;
@@ -253,9 +257,14 @@ export default function AdminWorkspace() {
   const location = useLocation();
   const pathnameSection = location.pathname.split('/').pop();
   const requested = searchParams.get('section') || pathnameSection;
-  const section: AdminSection = requested === 'users' || requested === 'events' || requested === 'attendance' || requested === 'reports' || requested === 'feedback' ? requested : 'dashboard';
+  const section: AdminSection = requested === 'users' || requested === 'events' || requested === 'attendance' || requested === 'reports' || requested === 'feedback' || requested === 'approvals' || requested === 'settings' ? requested : 'dashboard';
   const go = (next: AdminSection) => { navigate(`/admin/${next === 'dashboard' ? 'dashboard' : next}`); };
-  const user = AuthService.getCurrentUser();
-  return <div className="min-h-full"><div className="mb-6 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Signed in as {user?.name || 'Administrator'}</p><p className="mt-1 text-sm text-white/45">Required Admin functions · functional requirements workspace</p></div><nav className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-white/[0.03] p-1">{([{ id: 'dashboard', label: 'Dashboard' }, { id: 'users', label: 'Users' }, { id: 'events', label: 'Events' }, { id: 'attendance', label: 'Attendance' }, { id: 'reports', label: 'Reports' }, { id: 'feedback', label: 'Feedback' }] as const).map(item => <button type="button" key={item.id} onClick={() => go(item.id)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition ${section === item.id ? 'bg-blue-500/15 text-blue-200' : 'text-white/45 hover:bg-white/[0.06] hover:text-white'}`}>{item.label}</button>)}</nav></div>{section === 'dashboard' && <DashboardSection state={state} onNavigate={go} />}{section === 'users' && <UsersSection users={state.users} />}{section === 'events' && <EventsSection events={state.events} />}{section === 'attendance' && <AttendanceSection events={state.events} attendance={state.attendance} users={state.users} />}{section === 'reports' && <ReportsSection state={state} />}{section === 'feedback' && <FeedbackSection state={state} />}</div>;
+  const { user, updateUser } = useAuth();
+  const signedIn = user || AuthService.getCurrentUser();
+  const saveProfile = async (values: { name: string; email: string; phone: string }) => {
+    const updated = await eventApi.updateProfile(values);
+    updateUser(updated);
+  };
+  return <div className="min-h-full"><div className="mb-6 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Signed in as {signedIn?.name || 'Administrator'}</p><p className="mt-1 text-sm text-white/45">Required Admin functions · functional requirements workspace</p></div><nav className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-white/[0.03] p-1">{([{ id: 'dashboard', label: 'Dashboard' }, { id: 'approvals', label: 'Approvals' }, { id: 'users', label: 'Users' }, { id: 'events', label: 'Events' }, { id: 'attendance', label: 'Attendance' }, { id: 'reports', label: 'Reports' }, { id: 'feedback', label: 'Feedback' }, { id: 'settings', label: 'Settings' }] as const).map(item => <button type="button" key={item.id} onClick={() => go(item.id)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition ${section === item.id ? 'bg-blue-500/15 text-blue-200' : 'text-white/45 hover:bg-white/[0.06] hover:text-white'}`}>{item.label}</button>)}</nav></div>{section === 'dashboard' && <DashboardSection state={state} onNavigate={go} />}{section === 'approvals' && <AccountApprovals />}{section === 'users' && <UsersSection users={state.users} />}{section === 'events' && <EventsSection events={state.events} />}{section === 'attendance' && <AttendanceSection events={state.events} attendance={state.attendance} users={state.users} />}{section === 'reports' && <ReportsSection state={state} />}{section === 'feedback' && <FeedbackSection state={state} />}{section === 'settings' && signedIn && <SettingsPanel user={signedIn} onSaveProfile={saveProfile} />}</div>;
 }
 

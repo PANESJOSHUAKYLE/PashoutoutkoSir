@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Event, EventRegistration, UserProfile
+from .models import AppSettings, Event, EventRegistration, UserProfile
 
 User = get_user_model()
 
@@ -13,10 +13,22 @@ class AuthUserSerializer(serializers.ModelSerializer):
     role = serializers.CharField(source="profile.role")
     phone = serializers.CharField(source="profile.phone", allow_blank=True)
     department = serializers.CharField(source="profile.department", allow_blank=True)
+    dark_mode = serializers.BooleanField(source="profile.dark_mode")
+    signup_method = serializers.CharField(source="profile.signup_method")
 
     class Meta:
         model = User
-        fields = ("id", "username", "email", "name", "role", "phone", "department")
+        fields = (
+            "id",
+            "username",
+            "email",
+            "name",
+            "role",
+            "phone",
+            "department",
+            "dark_mode",
+            "signup_method",
+        )
         read_only_fields = fields
 
 
@@ -24,6 +36,7 @@ class ProfileUpdateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=150)
     email = serializers.EmailField(required=False, allow_blank=True)
     phone = serializers.CharField(max_length=40, required=False, allow_blank=True)
+    dark_mode = serializers.BooleanField(required=False)
 
     def validate(self, attrs):
         protected = {"role", "username", "id", "department", "card_identifier"}
@@ -129,6 +142,15 @@ class EventContextSerializer(serializers.ModelSerializer):
 
     def get_can_check_in(self, event):
         user = self.context["request"].user
+        app_settings = self.context.get("app_settings")
+        if app_settings is None:
+            app_settings = AppSettings.load()
+            self.context["app_settings"] = app_settings
+        method_enabled = {
+            Event.AttendanceMethod.QR: app_settings.qr_checkin_enabled,
+            Event.AttendanceMethod.BARCODE: app_settings.barcode_checkin_enabled,
+            Event.AttendanceMethod.RFID: app_settings.rfid_checkin_enabled,
+        }
         registration_ok = (
             not event.registration_required
             or user.profile.role != UserProfile.Role.STUDENT
@@ -136,6 +158,7 @@ class EventContextSerializer(serializers.ModelSerializer):
         )
         return bool(
             event.allows(user)
+            and method_enabled[event.attendance_method]
             and event.is_check_in_open()
             and registration_ok
             and not self._attendance(event)

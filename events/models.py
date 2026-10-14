@@ -23,6 +23,8 @@ class UserProfile(models.Model):
     card_identifier = models.CharField(
         max_length=120, unique=True, null=True, blank=True
     )
+    dark_mode = models.BooleanField(default=True)
+    signup_method = models.CharField(max_length=16, default="admin")
 
     def __str__(self) -> str:
         return f"{self.display_name} ({self.user.username})"
@@ -240,5 +242,85 @@ class AttendanceCode(models.Model):
     expires_at = models.DateTimeField()
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class AppSettings(models.Model):
+    google_auth_enabled = models.BooleanField(default=True)
+    guest_signup_enabled = models.BooleanField(default=True)
+    email_notifications_enabled = models.BooleanField(default=True)
+    qr_checkin_enabled = models.BooleanField(default=True)
+    barcode_checkin_enabled = models.BooleanField(default=True)
+    rfid_checkin_enabled = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "app settings"
+
+    @classmethod
+    def load(cls):
+        settings_row, _ = cls.objects.get_or_create(pk=1)
+        return settings_row
+
+
+class AccountRequest(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    class Method(models.TextChoices):
+        MANUAL = "manual", "Manual"
+        GOOGLE = "google", "Google"
+
+    email = models.EmailField()
+    full_name = models.CharField(max_length=150)
+    phone = models.CharField(max_length=40, blank=True)
+    password_hash = models.CharField(max_length=128, blank=True)
+    signup_method = models.CharField(max_length=16, choices=Method.choices)
+    google_subject = models.CharField(max_length=255, blank=True)
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.PENDING
+    )
+    assigned_role = models.CharField(
+        max_length=16, choices=UserProfile.Role.choices, blank=True
+    )
+    department = models.CharField(max_length=150, blank=True)
+    submitted_payload = models.JSONField(default=dict, blank=True)
+    created_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="account_requests",
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reviewed_account_requests",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("email",),
+                condition=models.Q(status="pending"),
+                name="unique_pending_account_email",
+            )
+        ]
+
+
+class AuditLog(models.Model):
+    action = models.CharField(max_length=80)
+    actor_username = models.CharField(max_length=150, blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
 
 

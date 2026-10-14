@@ -11,6 +11,30 @@ export interface AuthUser {
   role: UserRole;
   phone: string;
   department: string;
+  dark_mode: boolean;
+  signup_method: string;
+}
+
+export interface AppIntegrationSettings {
+  google_auth_enabled: boolean;
+  guest_signup_enabled: boolean;
+  email_notifications_enabled: boolean;
+  qr_checkin_enabled: boolean;
+  barcode_checkin_enabled: boolean;
+  rfid_checkin_enabled: boolean;
+}
+
+export interface AccountRequestRow {
+  id: number;
+  email: string;
+  name: string;
+  phone: string;
+  signup_method: string;
+  status: 'pending' | 'approved' | 'rejected';
+  assigned_role: string;
+  department: string;
+  submitted_payload: Record<string, unknown>;
+  created_at: string;
 }
 
 export interface EventRecord {

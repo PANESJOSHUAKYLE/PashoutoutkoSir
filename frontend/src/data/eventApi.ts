@@ -1,4 +1,6 @@
 import type {
+  AccountRequestRow,
+  AppIntegrationSettings,
   AttendanceConfirmation,
   AttendanceMethod,
   AuthUser,
@@ -101,10 +103,52 @@ async function download(path: string, filename: string) {
 }
 
 export const eventApi = {
-  async login(identifier: string, password: string) {
+  async login(identifier: string, password: string, portal: 'guest' | 'admin' = 'guest') {
     return requestJson<AuthUser>('/auth/login/', {
       method: 'POST',
-      body: JSON.stringify({ identifier, password }),
+      body: JSON.stringify({ identifier, password, portal }),
+    });
+  },
+  async signup(values: { email: string; name: string; phone: string; password: string }) {
+    return requestJson<{ status: string; message: string }>('/auth/signup/', {
+      method: 'POST',
+      body: JSON.stringify(values),
+    });
+  },
+  async googleAuth(values: { email: string; name: string; phone?: string; intent: 'login' | 'signup' }) {
+    return requestJson<AuthUser | { status: string; message: string }>('/auth/google/', {
+      method: 'POST',
+      body: JSON.stringify(values),
+    });
+  },
+  appSettings() {
+    return requestJson<AppIntegrationSettings>('/app-settings/');
+  },
+  async updateAppSettings(values: Partial<AppIntegrationSettings>) {
+    return requestJson<AppIntegrationSettings>('/app-settings/manage/', {
+      method: 'PATCH',
+      body: JSON.stringify(values),
+    });
+  },
+  accountRequests() {
+    return requestJson<AccountRequestRow[]>('/admin/account-requests/');
+  },
+  approveAccountRequest(id: number, role: 'student' | 'faculty', department: string) {
+    return requestJson<{ status: string; username: string; role: string; email: string }>(
+      `/admin/account-requests/${id}/approve/`,
+      { method: 'POST', body: JSON.stringify({ role, department }) },
+    );
+  },
+  rejectAccountRequest(id: number) {
+    return requestJson<{ status: string }>(`/admin/account-requests/${id}/reject/`, { method: 'POST' });
+  },
+  guestUsers() {
+    return requestJson<AuthUser[]>('/admin/guest-users/');
+  },
+  updateGuestUser(username: string, values: Partial<Pick<AuthUser, 'name' | 'email' | 'phone' | 'department' | 'role'>>) {
+    return requestJson<AuthUser>(`/admin/guest-users/${encodeURIComponent(username)}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(values),
     });
   },
   session() {
@@ -113,7 +157,7 @@ export const eventApi = {
   async logout() {
     await requestJson<void>('/auth/logout/', { method: 'POST' });
   },
-  async updateProfile(values: { name: string; email: string; phone: string }) {
+  async updateProfile(values: { name: string; email: string; phone: string; dark_mode?: boolean }) {
     return requestJson<AuthUser>('/profile/', {
       method: 'PATCH',
       body: JSON.stringify(values),

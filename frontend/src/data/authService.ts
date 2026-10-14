@@ -8,6 +8,7 @@ export interface LoginCredentials {
   email: string;
   password: string;
   userType?: UserType;
+  portal?: 'guest' | 'admin';
 }
 
 export const normalizeUserType = (userType?: string): UserType => {
@@ -24,7 +25,11 @@ export const getCurrentUser = (): AuthUser | null => activeUser;
 
 export class AuthService {
   static async login(credentials: LoginCredentials): Promise<AuthUser> {
-    const user = await eventApi.login(credentials.email.trim(), credentials.password);
+    const user = await eventApi.login(
+      credentials.email.trim(),
+      credentials.password,
+      credentials.portal || 'guest',
+    );
     activeUser = user;
     return user;
   }

@@ -12,6 +12,7 @@ from .services import (
     event_queryset_for_user,
     get_managed_event,
     managed_event_queryset,
+    personal_attendance_summary,
     record_event_attendance,
     require_role,
 )
@@ -104,19 +105,9 @@ def my_attendance(request):
         .select_related("event", "attendee__profile")
         .order_by("-event__starts_at")
     )
-    present = sum(record.status == EventAttendance.Status.PRESENT for record in records)
-    late = sum(record.status == EventAttendance.Status.LATE for record in records)
-    absent = sum(record.status == EventAttendance.Status.ABSENT for record in records)
-    denominator = present + late + absent
-    percentage = round((present + late) * 100 / denominator) if denominator else 0
     return Response(
         {
-            "summary": {
-                "present": present,
-                "late": late,
-                "absent": absent,
-                "attendancePercentage": percentage,
-            },
+            "summary": personal_attendance_summary(request.user),
             "records": [
                 {
                     "id": record.id,

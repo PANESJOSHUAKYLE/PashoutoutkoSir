@@ -143,6 +143,28 @@
   }
 }
 
+html.light {
+  color-scheme: light;
+  --app-bg: #eef2f7;
+  --app-surface: #ffffff;
+  --app-border: rgba(15, 23, 42, 0.08);
+}
+
+html.light body {
+  @apply bg-[#eef2f7] text-slate-800;
+  background-image: radial-gradient(circle at 12% -10%, rgba(59, 130, 246, 0.12), transparent 30%);
+}
+
+html.light .app-page-title,
+html.light .app-section-title { @apply text-slate-900; }
+html.light .app-page-subtitle,
+html.light .app-label { color: rgba(15, 23, 42, 0.45); }
+html.light .app-card { background: #ffffff; color: #0f172a; }
+html.light .app-input { @apply border-slate-200 bg-white text-slate-900 placeholder:text-slate-400; }
+html.light .app-workspace { background: #eef2f7 !important; color: #0f172a; }
+html.light .auth-screen { color: #0f172a; }
+html.light .auth-card { background: rgba(255, 255, 255, 0.96); color: #0f172a; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }

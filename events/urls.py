@@ -1,12 +1,33 @@
 from django.urls import path
 
-from . import auth_views, event_views, report_views
+from . import account_views, auth_views, event_views, report_views
 
 urlpatterns = [
     path("auth/csrf/", auth_views.csrf, name="auth-csrf"),
     path("auth/login/", auth_views.login_view, name="auth-login"),
     path("auth/logout/", auth_views.logout_view, name="auth-logout"),
     path("auth/me/", auth_views.me, name="auth-me"),
+    path("auth/signup/", account_views.signup_view, name="auth-signup"),
+    path("auth/google/", account_views.google_auth_view, name="auth-google"),
+    path("app-settings/", account_views.public_settings, name="app-settings-public"),
+    path("app-settings/manage/", account_views.app_settings, name="app-settings-manage"),
+    path("admin/account-requests/", account_views.account_request_list, name="account-request-list"),
+    path(
+        "admin/account-requests/<int:request_id>/approve/",
+        account_views.account_request_approve,
+        name="account-request-approve",
+    ),
+    path(
+        "admin/account-requests/<int:request_id>/reject/",
+        account_views.account_request_reject,
+        name="account-request-reject",
+    ),
+    path("admin/guest-users/", account_views.guest_user_list, name="guest-user-list"),
+    path(
+        "admin/guest-users/<str:username>/",
+        account_views.guest_user_update,
+        name="guest-user-update",
+    ),
     path("profile/", auth_views.profile, name="profile"),
     path("events/", event_views.event_list, name="event-list"),
     path("events/managed/", event_views.managed_event_list, name="managed-event-list"),

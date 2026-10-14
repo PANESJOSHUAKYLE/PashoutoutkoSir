@@ -10,6 +10,7 @@ from django.utils import timezone
 from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
 
 from .models import (
+    AppSettings,
     AttendanceCode,
     Event,
     EventAttendance,
@@ -54,6 +55,39 @@ def managed_event_queryset(user):
     )
 
 
+def personal_attendance_summary(user):
+    """Calculate attendance against completed events the user was expected to attend."""
+    now = timezone.now()
+    eligible_events = Event.objects.filter(
+        Q(audience=Event.Audience.ALL) | Q(audience=user.profile.role),
+        status=Event.Status.PUBLISHED,
+        ends_at__lt=now,
+    )
+    if user.profile.role == UserProfile.Role.STUDENT:
+        eligible_events = eligible_events.filter(
+            Q(registration_required=False)
+            | Q(
+                registration_required=True,
+                registrations__attendee=user,
+                registrations__status=EventRegistration.Status.REGISTERED,
+            )
+        )
+    eligible_events = eligible_events.distinct()
+    eligible_count = eligible_events.count()
+    records = EventAttendance.objects.filter(attendee=user, event__in=eligible_events)
+    present = records.filter(status=EventAttendance.Status.PRESENT).count()
+    late = records.filter(status=EventAttendance.Status.LATE).count()
+    absent = max(0, eligible_count - present - late)
+    return {
+        "present": present,
+        "late": late,
+        "absent": absent,
+        "attendancePercentage": round((present + late) * 100 / eligible_count)
+        if eligible_count
+        else 0,
+    }
+
+
 def get_managed_event(user, event_id):
     try:
         event = managed_event_queryset(user).get(pk=event_id)
@@ -71,6 +105,8 @@ def create_checkin_code(event, faculty_user):
         raise PermissionDenied("Only assigned faculty can generate this event code.")
     if event.attendance_method != Event.AttendanceMethod.QR:
         raise ValidationError({"event": "This event does not use QR check-in."})
+    if not AppSettings.load().qr_checkin_enabled:
+        raise ValidationError({"event": "QR check-in is disabled."})
     if not event.is_check_in_open():
         raise ValidationError({"event": "The event check-in window is not open."})
 
@@ -136,6 +172,15 @@ def record_event_attendance(user, *, token=None, event_id=None, identifier=None,
     require_role(user, UserProfile.Role.STUDENT, UserProfile.Role.FACULTY)
     if method not in Event.AttendanceMethod.values:
         raise ValidationError({"method": "Choose a supported event attendance method."})
+
+    settings_row = AppSettings.load()
+    method_enabled = {
+        Event.AttendanceMethod.QR: settings_row.qr_checkin_enabled,
+        Event.AttendanceMethod.BARCODE: settings_row.barcode_checkin_enabled,
+        Event.AttendanceMethod.RFID: settings_row.rfid_checkin_enabled,
+    }
+    if not method_enabled[method]:
+        raise ValidationError({"method": "This attendance method is disabled."})
 
     event = resolve_scanned_event(token, event_id, user)
     if event.attendance_method != method:

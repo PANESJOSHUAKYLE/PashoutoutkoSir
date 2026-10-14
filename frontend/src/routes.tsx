@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import Login from './auth/Login';
+import AuthGate from './auth/AuthGate';
 import RequireAuth from './auth/RequireAuth';
 import Portal from './pages/Portal';
 import AdminWorkspace from './pages/admin/Workspace';
@@ -8,7 +8,7 @@ import AdminPageWrapper from './components/layout/admin/PageWrapper';
 export default function AppRoutes() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route path="/login" element={<AuthGate />} />
       <Route
         path="/unauthorized"
         element={
@@ -44,10 +44,12 @@ export default function AppRoutes() {
       <Route path="/admin/attendance" element={<RequireAuth allowedRoles={['admin']}><AdminPageWrapper><AdminWorkspace /></AdminPageWrapper></RequireAuth>} />
       <Route path="/admin/reports" element={<RequireAuth allowedRoles={['admin']}><AdminPageWrapper><AdminWorkspace /></AdminPageWrapper></RequireAuth>} />
       <Route path="/admin/feedback" element={<RequireAuth allowedRoles={['admin']}><AdminPageWrapper><AdminWorkspace /></AdminPageWrapper></RequireAuth>} />
+      <Route path="/admin/approvals" element={<RequireAuth allowedRoles={['admin']}><AdminPageWrapper><AdminWorkspace /></AdminPageWrapper></RequireAuth>} />
+      <Route path="/admin/settings" element={<RequireAuth allowedRoles={['admin']}><AdminPageWrapper><AdminWorkspace /></AdminPageWrapper></RequireAuth>} />
       <Route path="/admin/super" element={<Navigate to="/admin/dashboard" replace />} />
 
-      <Route path="/" element={<Navigate to="/login" replace />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<AuthGate />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

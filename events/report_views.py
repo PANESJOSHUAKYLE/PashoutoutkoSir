@@ -4,7 +4,7 @@ from rest_framework.response import Response
 
 from .models import EventAttendance, EventCertificate, EventRegistration
 from .pdf import build_simple_pdf
-from .services import get_managed_event, require_role
+from .services import get_managed_event, personal_attendance_summary, require_role
 
 
 def _pdf_response(content, filename):
@@ -38,10 +38,8 @@ def my_attendance_pdf(request):
         .select_related("event")
         .order_by("-event__starts_at")
     )
-    summary = _summary(records)
-    total_attended = summary["present"] + summary["late"]
-    denominator = total_attended + summary["absent"]
-    percentage = round(total_attended * 100 / denominator) if denominator else 0
+    summary = personal_attendance_summary(request.user)
+    percentage = summary["attendancePercentage"]
     rows = [
         [
             record.event.name,

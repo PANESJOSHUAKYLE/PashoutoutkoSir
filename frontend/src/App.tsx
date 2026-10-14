@@ -2,12 +2,14 @@ import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import AppRoutes from './routes';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { Toaster } from 'react-hot-toast';
 
 const App: React.FC = () => (
   <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
     <AuthProvider>
-      <div className="min-h-screen bg-[#090b10] font-sans text-slate-100 selection:bg-blue-500/30 selection:text-white">
+      <ThemeProvider>
+      <div className="min-h-screen bg-[var(--app-bg)] font-sans text-slate-100 selection:bg-blue-500/30 selection:text-white">
         <Toaster
           position="top-right"
           toastOptions={{
@@ -27,6 +29,7 @@ const App: React.FC = () => (
         />
         <AppRoutes />
       </div>
+      </ThemeProvider>
     </AuthProvider>
   </BrowserRouter>
 );

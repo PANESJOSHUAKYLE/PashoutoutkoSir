@@ -7,6 +7,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from events.models import (
+    AppSettings,
     Event,
     EventAttendance,
     EventCertificate,
@@ -195,7 +196,17 @@ class Command(BaseCommand):
                 "message": "Awarded for participation and contribution.",
             },
         )
+        AppSettings.load()
         self.stdout.write(self.style.SUCCESS("Event-attendance demo data is ready."))
         self.stdout.write("Student: STU001 / configured DEMO_STUDENT_PASSWORD")
         self.stdout.write("Faculty: FAC001 / configured DEMO_FACULTY_PASSWORD")
         self.stdout.write("Admin: ADM001 / admin123 (development only)")
+        try:
+            from events.mongodb import sync_app_data_to_mongodb
+
+            counts = sync_app_data_to_mongodb()
+            self.stdout.write(self.style.SUCCESS("Copied the same records into MongoDB (Compass)."))
+            for name, count in counts.items():
+                self.stdout.write(f"  {name}: {count} document(s)")
+        except Exception as exc:
+            self.stderr.write(self.style.WARNING(f"MongoDB sync skipped: {exc}"))

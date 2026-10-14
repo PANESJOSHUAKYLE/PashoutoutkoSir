@@ -9,11 +9,12 @@ import AttendanceHistory from '../components/event/AttendanceHistory';
 import FacultyMonitor from '../components/event/FacultyMonitor';
 import EventFeedback from '../components/event/EventFeedback';
 import ProfilePanel from '../components/event/ProfilePanel';
+import SettingsPanel from '../components/event/SettingsPanel';
 import { useAuth } from '../context/AuthContext';
 import { eventApi } from '../data/eventApi';
 import type { EventRecord, MonitoredEventAttendance, PersonalAttendanceData } from '../types/eventAttendance';
 
-type View = 'dashboard' | 'events' | 'attendance' | 'history' | 'monitor' | 'feedback' | 'profile';
+type View = 'dashboard' | 'events' | 'attendance' | 'history' | 'monitor' | 'feedback' | 'profile' | 'settings';
 const emptyAttendance: PersonalAttendanceData = { summary: { present: 0, late: 0, absent: 0, attendancePercentage: 0 }, records: [] };
 
 export default function Portal() {
@@ -21,7 +22,7 @@ export default function Portal() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const requestedView = searchParams.get('view');
-  const initialView: View = ['dashboard', 'events', 'attendance', 'history', 'monitor', 'feedback', 'profile'].includes(requestedView || '') ? requestedView as View : 'dashboard';
+  const initialView: View = ['dashboard', 'events', 'attendance', 'history', 'monitor', 'feedback', 'profile', 'settings'].includes(requestedView || '') ? requestedView as View : 'dashboard';
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [attendance, setAttendance] = useState<PersonalAttendanceData>(emptyAttendance);
   const [managedEvents, setManagedEvents] = useState<EventRecord[]>([]);
@@ -93,6 +94,7 @@ export default function Portal() {
     if (view === 'history') return <AttendanceHistory data={attendance} onDownload={() => handleDownload('mine')} />;
     if (view === 'monitor' && isFaculty) return <FacultyMonitor events={managedEvents} selectedId={monitoredId} data={monitored} onSelect={setMonitoredId} onRefresh={() => void loadMonitor()} onDownload={() => handleDownload('event', monitoredId)} loading={monitorLoading} />;
     if (view === 'feedback') return <EventFeedback events={events} onSubmit={handleFeedback} />;
+    if (view === 'settings') return <SettingsPanel user={user} onSaveProfile={handleProfile} />;
     return <ProfilePanel user={user} onSave={handleProfile} />;
   })();
 

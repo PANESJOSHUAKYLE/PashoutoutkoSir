@@ -15,7 +15,7 @@ export default function RequireAuth({ children, allowedRoles }: RequireAuthProps
   if (isLoading) {
     return <main className="app-workspace flex min-h-screen items-center justify-center bg-[#090b10] p-6 text-sm text-white/60">Validating secure session…</main>;
   }
-  if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
+  if (!user) return <Navigate to="/" state={{ from: location }} replace />;
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/unauthorized" replace />;
   }

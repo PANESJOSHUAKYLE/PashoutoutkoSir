@@ -6,7 +6,15 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from .models import Event, EventAttendance, EventCertificate, EventRegistration, UserProfile
+from .models import (
+    AccountRequest,
+    AppSettings,
+    Event,
+    EventAttendance,
+    EventCertificate,
+    EventRegistration,
+    UserProfile,
+)
 from .services import create_checkin_code
 
 User = get_user_model()
@@ -62,6 +70,40 @@ class EventAttendanceTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["role"], UserProfile.Role.STUDENT)
 
+    def test_google_login_cannot_authenticate_from_a_claimed_email(self):
+        response = self.client.post(
+            reverse("auth-google"),
+            {"email": self.student.email, "intent": "login"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 501)
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+    def test_checkin_setting_disables_api_scans(self):
+        code = create_checkin_code(self.event, self.faculty)["token"]
+        app_settings = AppSettings.load()
+        app_settings.qr_checkin_enabled = False
+        app_settings.save(update_fields=["qr_checkin_enabled", "updated_at"])
+        self.client.force_authenticate(self.student)
+        response = self.client.post(
+            reverse("attendance-scan"), {"token": code, "method": "qr"}, format="json"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(
+            EventAttendance.objects.filter(event=self.event, attendee=self.student).exists()
+        )
+
+    def test_app_settings_reject_string_booleans(self):
+        admin = self.make_user("ADM001", "admin", "ADM001")
+        self.client.force_authenticate(admin)
+        response = self.client.patch(
+            reverse("app-settings-manage"),
+            {"qr_checkin_enabled": "false"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(AppSettings.load().qr_checkin_enabled)
+
     def test_login_accepts_both_local_frontend_origins(self):
         for origin in ("http://localhost:5173", "http://127.0.0.1:5173"):
             with self.subTest(origin=origin):
@@ -96,6 +138,37 @@ class EventAttendanceTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["records"]), 1)
         self.assertEqual(response.data["records"][0]["eventId"], str(self.event.id))
+
+    def test_attendance_percentage_counts_completed_eligible_events(self):
+        self.event.starts_at = self.now - timedelta(hours=3)
+        self.event.ends_at = self.now - timedelta(hours=1)
+        self.event.check_in_opens_at = self.now - timedelta(hours=4)
+        self.event.check_in_closes_at = self.now - timedelta(hours=1)
+        self.event.late_cutoff = self.now - timedelta(hours=2)
+        self.event.save()
+        required_event = self.make_event(self.faculty, registration=True)
+        required_event.starts_at = self.now - timedelta(hours=4)
+        required_event.ends_at = self.now - timedelta(hours=2)
+        required_event.check_in_opens_at = self.now - timedelta(hours=5)
+        required_event.check_in_closes_at = self.now - timedelta(hours=2)
+        required_event.late_cutoff = self.now - timedelta(hours=3)
+        required_event.save()
+        EventRegistration.objects.create(
+            event=required_event,
+            attendee=self.student,
+            status=EventRegistration.Status.REGISTERED,
+        )
+        EventAttendance.objects.create(
+            event=self.event,
+            attendee=self.student,
+            status=EventAttendance.Status.PRESENT,
+            method=self.event.attendance_method,
+        )
+        self.client.force_authenticate(self.student)
+        response = self.client.get(reverse("my-attendance"))
+        self.assertEqual(response.data["summary"]["present"], 1)
+        self.assertEqual(response.data["summary"]["absent"], 1)
+        self.assertEqual(response.data["summary"]["attendancePercentage"], 50)
 
     def test_profile_cannot_change_role(self):
         self.client.force_authenticate(self.student)
