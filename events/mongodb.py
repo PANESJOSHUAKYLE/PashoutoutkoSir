@@ -67,9 +67,16 @@ def sync_app_data_to_mongodb():
                     "display_name": profile.display_name if profile else user.get_username(),
                     "phone": profile.phone if profile else "",
                     "department": profile.department if profile else "",
-                    "card_identifier": profile.card_identifier if profile else None,
+                    # A sparse unique index permits many documents without this
+                    # field, but treats repeated explicit nulls as duplicates.
+                    **(
+                        {"card_identifier": profile.card_identifier}
+                        if profile and profile.card_identifier
+                        else {}
+                    ),
                     "dark_mode": profile.dark_mode if profile else True,
                     "signup_method": profile.signup_method if profile else "admin",
+                    "is_archived": profile.is_archived if profile else False,
                 }
             )
 
@@ -196,7 +203,12 @@ def sync_app_data_to_mongodb():
                 "created_at": _iso(row.created_at),
                 "reviewed_at": _iso(row.reviewed_at),
             }
-            for row in AccountRequest.objects.all()
+            # Pending requests stay in Django's private approval queue. Only
+            # approved requests are mirrored; rejected or pending applicants
+            # never appear as MongoDB account documents.
+            for row in AccountRequest.objects.filter(
+                status=AccountRequest.Status.APPROVED
+            )
         ]
         audit_logs = [
             {

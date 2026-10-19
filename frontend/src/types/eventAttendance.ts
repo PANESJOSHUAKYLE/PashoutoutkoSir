@@ -8,15 +8,19 @@ export interface AuthUser {
   username: string;
   name: string;
   email: string;
+  is_active: boolean;
   role: UserRole;
   phone: string;
   department: string;
   dark_mode: boolean;
   signup_method: string;
+  is_archived: boolean;
 }
 
 export interface AppIntegrationSettings {
   google_auth_enabled: boolean;
+  google_auth_configured: boolean;
+  google_client_id: string;
   guest_signup_enabled: boolean;
   email_notifications_enabled: boolean;
   qr_checkin_enabled: boolean;
@@ -62,6 +66,17 @@ export interface EventRecord {
   late_cutoff: string;
   attendance_method: AttendanceMethod;
   is_organizer: boolean;
+}
+
+export interface AnnouncementRecord {
+  id: number;
+  title: string;
+  body: string;
+  audience: 'all' | 'student' | 'faculty';
+  event_id: string | null;
+  event_name: string | null;
+  created_at: string;
+  is_read: boolean;
 }
 
 export interface PersonalAttendanceSummary {

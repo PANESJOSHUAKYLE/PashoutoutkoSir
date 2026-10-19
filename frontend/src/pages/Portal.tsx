@@ -50,6 +50,20 @@ export default function Portal() {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
+  useEffect(() => {
+    if (!user) return;
+    const refreshEvents = () => {
+      if (document.visibilityState !== 'visible') return;
+      void eventApi.events().then(setEvents).catch(() => undefined);
+    };
+    const timer = window.setInterval(refreshEvents, 30000);
+    window.addEventListener('focus', refreshEvents);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshEvents);
+    };
+  }, [user]);
+
   const loadMonitor = useCallback(async () => {
     if (!isFaculty || !monitoredId) return;
     setMonitorLoading(true);

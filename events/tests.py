@@ -104,6 +104,25 @@ class EventAttendanceTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertTrue(AppSettings.load().qr_checkin_enabled)
 
+    def test_admin_password_reset_returns_once_and_stores_only_hash(self):
+        admin = self.make_user("ADM001", "admin", "ADM001")
+        self.client.force_authenticate(admin)
+        response = self.client.post(
+            reverse("guest-user-password-reset", args=[self.student.username])
+        )
+        self.assertEqual(response.status_code, 200)
+        temporary_password = response.data["temporary_password"]
+        self.student.refresh_from_db()
+        self.assertTrue(self.student.check_password(temporary_password))
+        self.assertNotEqual(self.student.password, temporary_password)
+
+    def test_student_cannot_reset_another_users_password(self):
+        self.client.force_authenticate(self.student)
+        response = self.client.post(
+            reverse("guest-user-password-reset", args=[self.other_student.username])
+        )
+        self.assertEqual(response.status_code, 403)
+
     def test_login_accepts_both_local_frontend_origins(self):
         for origin in ("http://localhost:5173", "http://127.0.0.1:5173"):
             with self.subTest(origin=origin):

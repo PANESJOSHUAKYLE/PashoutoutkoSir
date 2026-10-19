@@ -4,8 +4,13 @@ from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from .models import Event, EventAttendance, EventFeedback, EventRegistration
-from .serializers import EventContextSerializer
+from .models import Announcement, AnnouncementRead, Event, EventAttendance, EventFeedback, EventRegistration
+from .serializers import (
+    AdminAnnouncementCreateSerializer,
+    AdminEventPublishSerializer,
+    AnnouncementSerializer,
+    EventContextSerializer,
+)
 from .services import (
     DuplicateAttendance,
     create_checkin_code,
@@ -28,6 +33,71 @@ def event_list(request):
 def managed_event_list(request):
     events = managed_event_queryset(request.user)
     return Response(EventContextSerializer(events, many=True, context={"request": request}).data)
+
+
+@api_view(["POST"])
+def publish_admin_event(request):
+    require_role(request.user, "admin")
+    serializer = AdminEventPublishSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    event = serializer.save(organizer=request.user, status=Event.Status.PUBLISHED)
+    Announcement.objects.create(
+        title=f"New event: {event.name}",
+        body=event.description or f"{event.name} has been posted at {event.venue}.",
+        audience=event.audience,
+        event=event,
+        created_by=request.user,
+    )
+    return Response({"id": str(event.id)}, status=201)
+
+
+@api_view(["GET"])
+def announcement_list(request):
+    require_role(request.user, "student", "faculty")
+    audience = request.user.profile.role
+    announcements = Announcement.objects.filter(
+        audience__in=(Announcement.Audience.ALL, audience)
+    ).select_related("event")
+    return Response(
+        AnnouncementSerializer(
+            announcements, many=True, context={"request": request}
+        ).data
+    )
+
+
+@api_view(["POST"])
+def announcement_mark_read(request, announcement_id):
+    require_role(request.user, "student", "faculty")
+    audience = request.user.profile.role
+    announcement = Announcement.objects.filter(
+        pk=announcement_id,
+        audience__in=(Announcement.Audience.ALL, audience),
+    ).first()
+    if not announcement:
+        raise ValidationError({"announcement": "Announcement not found."})
+    AnnouncementRead.objects.get_or_create(announcement=announcement, user=request.user)
+    return Response({"is_read": True})
+
+
+@api_view(["GET", "POST"])
+def admin_announcements(request):
+    require_role(request.user, "admin")
+    if request.method == "POST":
+        serializer = AdminAnnouncementCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        announcement = serializer.save(created_by=request.user)
+        return Response(
+            AnnouncementSerializer(
+                announcement, context={"request": request}
+            ).data,
+            status=201,
+        )
+    announcements = Announcement.objects.select_related("event").all()
+    return Response(
+        AnnouncementSerializer(
+            announcements, many=True, context={"request": request}
+        ).data
+    )
 
 
 @api_view(["POST"])

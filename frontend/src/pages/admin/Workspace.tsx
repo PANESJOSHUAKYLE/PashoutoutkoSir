@@ -3,37 +3,30 @@ import { jsPDF } from 'jspdf';
 import {
   Activity, AlertCircle, ArrowRight, BarChart3, CalendarDays, Check, CheckCircle2,
   ClipboardCheck, Download, Edit3, FileText, MessageSquare,
-  Plus, Search, ShieldCheck, Trash2, Users, X,
+  Plus, Search, Trash2, Users, X, Archive,
 } from 'lucide-react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthService } from '../../data/authService';
 import { useAuth } from '../../context/AuthContext';
 import { eventApi } from '../../data/eventApi';
 import AccountApprovals from './AccountApprovals';
+import UserManagement from './UserManagement';
+import ArchivedAccounts from './ArchivedAccounts';
+import AnnouncementsSection from './AnnouncementsSection';
 import SettingsPanel from '../../components/event/SettingsPanel';
+import { GoogleMapPicker, GoogleMapPreview } from '../../components/common/GoogleMapsLocation';
 import {
-  addAttendance, addEvent, addUser, approveEvent, cancelEvent, correctAttendance,
+  addAttendance, addEvent, cancelEvent, correctAttendance,
   getAttendanceCounts, getAttendancePercentage, getFormResults, getLiveEvent,
-  removeAttendance, removeForm, removeUser, reportRows, saveForm, setUserStatus,
-  updateEvent, updateUser, useAdminState,
-  type AdminEvent, type AdminRole, type AdminState, type AdminUserAccount,
+  removeAttendance, removeForm, reportRows, saveForm,
+  updateEvent, useAdminState,
+  type AdminEvent, type AdminState, type AdminUserAccount,
   type AttendanceStatus, type EvaluationForm, type EventAudience, type EventOrigin,
 } from '../../data/adminStore';
 import Button from '../../components/common/Button';
 import { StatusBadge } from '../../components/common/StatusBadge';
 
-export type AdminSection = 'dashboard' | 'users' | 'events' | 'attendance' | 'reports' | 'feedback' | 'approvals' | 'settings';
-
-type UserForm = {
-  id?: string;
-  name: string;
-  username: string;
-  email: string;
-  contact: string;
-  role: AdminRole;
-  department: string;
-  password: string;
-};
+export type AdminSection = 'dashboard' | 'users' | 'events' | 'attendance' | 'reports' | 'feedback' | 'approvals' | 'announcements' | 'settings' | 'archive';
 
 type EventForm = {
   name: string;
@@ -51,16 +44,46 @@ type EventForm = {
   cutoff: string;
   status: AdminEvent['status'];
   requiredForAttendance: boolean;
+  latitude?: number;
+  longitude?: number;
+  locationImage?: string;
 };
 
-const emptyUserForm: UserForm = { name: '', username: '', email: '', contact: '', role: 'Student', department: 'BSIT', password: '' };
 const emptyEventForm: EventForm = {
   name: '', description: '', date: '', start: '08:00', end: '16:00', venue: '', organizer: 'College of Technologies',
-  origin: 'Admin', audience: 'All', department: 'College of Technologies', method: 'QR Code', identifierRange: 'All active attendees', cutoff: '08:15', status: 'Approved', requiredForAttendance: true,
+  origin: 'Admin', audience: 'All', department: 'College of Technologies', method: 'QR Code', identifierRange: 'All active attendees', cutoff: '08:15', status: 'Approved', requiredForAttendance: true, latitude: undefined, longitude: undefined,
 };
 const inputClass = 'w-full rounded-xl border border-white/[0.1] bg-white/[0.05] px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-blue-400/60 focus:ring-2 focus:ring-blue-400/20';
 const labelClass = 'mb-1.5 block text-[10px] font-bold uppercase tracking-[0.16em] text-white/45';
 const panelClass = 'rounded-2xl border border-white/[0.08] bg-[#11151d]/90 shadow-xl';
+const localDateValue = () => {
+  const current = new Date();
+  current.setMinutes(current.getMinutes() - current.getTimezoneOffset());
+  return current.toISOString().slice(0, 10);
+};
+
+async function compressLocationImage(file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) throw new Error('Choose an image file.');
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1400 / bitmap.width, 1000 / bitmap.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('The image could not be processed by this browser.');
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const compressed = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('The image could not be compressed.')), 'image/jpeg', 0.78);
+  });
+  if (compressed.size > 1_500_000) throw new Error('This image is still too large. Choose a smaller photo.');
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('The image could not be read.'));
+    reader.onerror = () => reject(new Error('The image could not be read.'));
+    reader.readAsDataURL(compressed);
+  });
+}
 
 function statusTone(status: string): 'success' | 'warning' | 'error' | 'info' {
   if (['Active', 'Approved', 'Present', 'Completed'].includes(status)) return 'success';
@@ -68,8 +91,6 @@ function statusTone(status: string): 'success' | 'warning' | 'error' | 'info' {
   if (['Inactive', 'Cancelled', 'Absent'].includes(status)) return 'error';
   return 'info';
 }
-
-function initials(name: string) { return name.split(' ').filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase(); }
 
 function Modal({ title, description, onClose, children }: { title: string; description?: string; onClose: () => void; children: React.ReactNode }) {
   return <div className="fixed inset-0 z-[100] flex items-center justify-center p-4"><button type="button" aria-label="Close dialog" className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose} /><section className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/[0.1] bg-[#151a23] p-6 shadow-2xl"><div className="mb-5 flex items-start justify-between gap-4"><div><h2 className="text-xl font-bold text-white">{title}</h2>{description && <p className="mt-1 text-sm text-white/45">{description}</p>}</div><button type="button" onClick={onClose} className="rounded-lg p-2 text-white/45 hover:bg-white/[0.06] hover:text-white" aria-label="Close"><X size={18} /></button></div>{children}</section></div>;
@@ -82,30 +103,13 @@ function Metric({ label, value, tone = 'blue', icon: Icon }: { label: string; va
   return <div className={panelClass + ' p-5'}><div className="flex items-center justify-between"><p className="text-xs font-semibold text-white/45">{label}</p><span className={`rounded-xl p-2.5 ${tones[tone]}`}><Icon size={18} /></span></div><p className="mt-4 text-3xl font-black text-white">{value}</p></div>;
 }
 
-function UserEditor({ form, editingId, setForm, onSubmit, onClose, error }: { form: UserForm; editingId?: string; setForm: (form: UserForm) => void; onSubmit: () => void; onClose: () => void; error: string }) {
-  const set = (key: keyof UserForm, value: string) => setForm({ ...form, [key]: value });
-  return <Modal title={form.id ? 'Edit account' : 'Create account'} description="Manage identity, contact details, and access role." onClose={onClose}><form onSubmit={event => { event.preventDefault(); onSubmit(); }} className="grid gap-4 sm:grid-cols-2">
-    <label><span className={labelClass}>Full name</span><input className={inputClass} value={form.name} onChange={event => set('name', event.target.value)} required /></label>
-    <label><span className={labelClass}>Account ID</span><input className={inputClass} value={form.id || ''} onChange={event => set('id', event.target.value)} placeholder="STU011 / EMP004 / ADM004" required readOnly={Boolean(editingId)} /></label>
-    <label><span className={labelClass}>Username</span><input className={inputClass} value={form.username} onChange={event => set('username', event.target.value)} required /></label>
-    <label><span className={labelClass}>Email</span><input type="email" className={inputClass} value={form.email} onChange={event => set('email', event.target.value)} required /></label>
-    <label><span className={labelClass}>Contact details</span><input className={inputClass} value={form.contact} onChange={event => set('contact', event.target.value)} placeholder="Phone or email" required /></label>
-    <label><span className={labelClass}>Department / course</span><input className={inputClass} value={form.department} onChange={event => set('department', event.target.value)} required /></label>
-    <label><span className={labelClass}>Role</span><select className={inputClass} value={form.role} onChange={event => set('role', event.target.value)}><option>Student</option><option>Faculty</option><option>Admin</option></select></label>
-    <label><span className={labelClass}>{form.id ? 'New password (optional)' : 'Temporary password'}</span><input type="password" className={inputClass} value={form.password} onChange={event => set('password', event.target.value)} required={!form.id} /></label>
-    {error && <p className="rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-sm text-rose-200 sm:col-span-2">{error}</p>}
-    <div className="flex justify-end gap-3 sm:col-span-2"><Button variant="glass" onClick={onClose}>Cancel</Button><Button type="submit">{form.id ? 'Save changes' : 'Create account'}</Button></div>
-  </form></Modal>;
-}
-
-
-
 function EventEditor({ form, setForm, onSubmit, onClose, error }: { form: EventForm; setForm: (form: EventForm) => void; onSubmit: () => void; onClose: () => void; error: string }) {
+  const [imageError, setImageError] = useState('');
   const set = <K extends keyof EventForm>(key: K, value: EventForm[K]) => setForm({ ...form, [key]: value });
-  return <Modal title="Schedule event" description="Set event details, attendance method, and automatic late cut-off." onClose={onClose}><form onSubmit={event => { event.preventDefault(); onSubmit(); }} className="grid gap-4 sm:grid-cols-2">
+  return <Modal title="Schedule event" description="Set event details, attendance method, location, and automatic late cut-off." onClose={onClose}><form onSubmit={event => { event.preventDefault(); onSubmit(); }} className="grid gap-4 sm:grid-cols-2">
     <label className="sm:col-span-2"><span className={labelClass}>Event name</span><input className={inputClass} value={form.name} onChange={event => set('name', event.target.value)} required /></label>
     <label className="sm:col-span-2"><span className={labelClass}>Description</span><textarea className={inputClass} rows={2} value={form.description} onChange={event => set('description', event.target.value)} required /></label>
-    <label><span className={labelClass}>Date</span><input type="date" className={inputClass} value={form.date} onChange={event => set('date', event.target.value)} required /></label>
+    <label><span className={labelClass}>Date</span><input type="date" min={form.date && form.date < localDateValue() ? form.date : localDateValue()} className={inputClass} value={form.date} onChange={event => set('date', event.target.value)} required /><span className="mt-1 block text-xs text-white/40">Past dates are unavailable for new schedules.</span></label>
     <label><span className={labelClass}>Venue</span><input className={inputClass} value={form.venue} onChange={event => set('venue', event.target.value)} required /></label>
     <label><span className={labelClass}>Start time</span><input type="time" className={inputClass} value={form.start} onChange={event => set('start', event.target.value)} required /></label>
     <label><span className={labelClass}>End time</span><input type="time" className={inputClass} value={form.end} onChange={event => set('end', event.target.value)} required /></label>
@@ -116,34 +120,21 @@ function EventEditor({ form, setForm, onSubmit, onClose, error }: { form: EventF
     <label><span className={labelClass}>Event source</span><select className={inputClass} value={form.origin} onChange={event => set('origin', event.target.value as EventOrigin)}><option>Admin</option><option>Student organization</option><option>Faculty</option></select></label>
     <label><span className={labelClass}>Audience</span><select className={inputClass} value={form.audience} onChange={event => set('audience', event.target.value as EventAudience)}><option>All</option><option>Student</option><option>Faculty</option></select></label>
     <label><span className={labelClass}>Department / group</span><input className={inputClass} value={form.department} onChange={event => set('department', event.target.value)} required /></label>
+    <div className="space-y-3 sm:col-span-2">
+      <div><p className={labelClass}>Exact event location</p><p className="text-xs text-white/45">Choose the venue on the BukSU campus map. The selected pin is saved with this event.</p></div>
+      <GoogleMapPicker latitude={form.latitude} longitude={form.longitude} onChange={(latitude, longitude) => setForm({ ...form, latitude, longitude })} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label><span className={labelClass}>Latitude</span><input type="number" step="any" className={inputClass} value={form.latitude ?? ''} onChange={event => set('latitude', event.target.value === '' ? undefined : Number(event.target.value))} placeholder="8.157416" /></label>
+        <label><span className={labelClass}>Longitude</span><input type="number" step="any" className={inputClass} value={form.longitude ?? ''} onChange={event => set('longitude', event.target.value === '' ? undefined : Number(event.target.value))} placeholder="125.124850" /></label>
+      </div>
+      <label className="block"><span className={labelClass}>Location photo (optional)</span><input type="file" accept="image/*" className={inputClass} onChange={async event => { const file = event.target.files?.[0]; if (!file) return; setImageError(''); try { set('locationImage', await compressLocationImage(file)); } catch (caught) { setImageError(caught instanceof Error ? caught.message : 'The photo could not be added.'); } }} /><span className="mt-1 block text-xs text-white/40">Saved in this browser's admin workspace. Images are resized and compressed before saving.</span></label>
+      {imageError && <p role="alert" className="text-xs text-rose-300">{imageError}</p>}
+      {form.locationImage && <div className="relative"><img src={form.locationImage} alt="Selected event location" className="max-h-56 w-full rounded-xl border border-white/10 object-cover" /><Button type="button" variant="glass" className="mt-2 px-3 py-2 text-xs" onClick={() => set('locationImage', undefined)}>Remove location photo</Button></div>}
+    </div>
     <label className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-sm text-white/70"><input type="checkbox" checked={form.requiredForAttendance} onChange={event => set('requiredForAttendance', event.target.checked)} /> Required for percentage</label>
     {error && <p className="rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-sm text-rose-200 sm:col-span-2">{error}</p>}
     <div className="flex justify-end gap-3 sm:col-span-2"><Button variant="glass" onClick={onClose}>Cancel</Button><Button type="submit">Schedule event</Button></div>
   </form></Modal>;
-}
-
-function UsersSection({ users }: { users: AdminUserAccount[] }) {
-  const [filter, setFilter] = useState<'All' | AdminRole>('All');
-  const [query, setQuery] = useState('');
-  const [editing, setEditing] = useState<AdminUserAccount | null | undefined>(undefined);
-  const [form, setForm] = useState<UserForm>(emptyUserForm);
-  const [error, setError] = useState('');
-  const visible = users.filter(user => (filter === 'All' || user.role === filter) && `${user.name} ${user.id} ${user.email} ${user.department}`.toLowerCase().includes(query.toLowerCase()));
-  const openCreate = () => { setEditing(null); setForm(emptyUserForm); setError(''); };
-  const openEdit = (user: AdminUserAccount) => { setEditing(user); setForm({ id: user.id, name: user.name, username: user.username, email: user.email, contact: user.contact, role: user.role, department: user.department, password: '' }); setError(''); };
-  const save = () => {
-    try {
-      if (editing) updateUser(editing.id, { name: form.name, username: form.username, email: form.email, contact: form.contact, role: form.role, department: form.department, ...(form.password ? { passwordHash: form.password } : {}) });
-      else addUser({ id: form.id, username: form.username, name: form.name, email: form.email, contact: form.contact, role: form.role, department: form.department, passwordHash: form.password });
-      setEditing(undefined);
-    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Unable to save account.'); }
-  };
-  const remove = (user: AdminUserAccount) => { if (window.confirm(`Delete ${user.name}'s account?`)) { try { removeUser(user.id); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Unable to delete account.'); } } };
-  return <section className="space-y-5"><div className="flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-300">RBAC · Identity directory</p><h1 className="mt-2 text-3xl font-black text-white">User management</h1><p className="mt-1 text-sm text-white/45">Create, update, deactivate, and assign Student, Faculty, or Admin access.</p></div><Button onClick={openCreate}><Plus size={17} /> Add account</Button></div>
-    <div className="flex flex-col gap-3 sm:flex-row"><div className="relative flex-1"><Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/35" /><input className={inputClass + ' pl-10'} value={query} onChange={event => setQuery(event.target.value)} placeholder="Search name, ID, email, or department" /></div><select className={inputClass + ' sm:w-48'} value={filter} onChange={event => setFilter(event.target.value as typeof filter)}><option>All</option><option>Student</option><option>Faculty</option><option>Admin</option></select></div>
-    <div className="overflow-x-auto rounded-2xl border border-white/[0.08]"><table className="w-full min-w-[920px] text-left text-sm"><thead className="border-b border-white/[0.08] bg-white/[0.03] text-xs uppercase tracking-wider text-white/40"><tr><th className="px-5 py-4">Account</th><th className="px-5 py-4">Role</th><th className="px-5 py-4">Department / course</th><th className="px-5 py-4">Contact</th><th className="px-5 py-4">Status</th><th className="px-5 py-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-white/[0.06]">{visible.map(user => <tr key={user.id} className="hover:bg-white/[0.025]"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-400/10 text-xs font-bold text-blue-200">{initials(user.name)}</span><div><p className="font-semibold text-white">{user.name}</p><p className="text-xs text-white/40">{user.id} · @{user.username}</p></div></div></td><td className="px-5 py-4"><StatusBadge status="info">{user.role}</StatusBadge></td><td className="px-5 py-4 text-white/65">{user.department}</td><td className="px-5 py-4 text-white/55">{user.contact || user.email}</td><td className="px-5 py-4"><StatusBadge status={user.status === 'Active' ? 'success' : 'error'}>{user.status}</StatusBadge></td><td className="px-5 py-4"><div className="flex justify-end gap-1"><button type="button" title="Edit account" onClick={() => openEdit(user)} className="rounded-lg p-2 text-white/45 hover:bg-blue-400/10 hover:text-blue-200"><Edit3 size={16} /></button><button type="button" title={user.status === 'Active' ? 'Deactivate account' : 'Reactivate account'} onClick={() => setUserStatus(user.id, user.status === 'Active' ? 'Inactive' : 'Active')} className="rounded-lg p-2 text-white/45 hover:bg-amber-400/10 hover:text-amber-200"><ShieldCheck size={16} /></button><button type="button" title="Delete account" onClick={() => remove(user)} className="rounded-lg p-2 text-white/45 hover:bg-rose-400/10 hover:text-rose-200"><Trash2 size={16} /></button></div></td></tr>)}</tbody></table>{visible.length === 0 && <div className="p-8"><EmptyState message="No accounts match the current filters." /></div>}</div>
-    {editing !== undefined && <UserEditor form={form} editingId={editing?.id} setForm={setForm} onSubmit={save} onClose={() => setEditing(undefined)} error={error} />}
-  </section>;
 }
 
 function EventsSection({ events }: { events: AdminEvent[] }) {
@@ -151,14 +142,45 @@ function EventsSection({ events }: { events: AdminEvent[] }) {
   const [editing, setEditing] = useState<AdminEvent | null | undefined>(undefined);
   const [form, setForm] = useState<EventForm>(emptyEventForm);
   const [error, setError] = useState('');
+  const [publishError, setPublishError] = useState('');
+  const [publishingId, setPublishingId] = useState('');
   const visible = events.filter(event => filter === 'All' || event.origin === filter).sort((a, b) => b.date.localeCompare(a.date));
   const openCreate = () => { setEditing(null); setForm(emptyEventForm); setError(''); };
-  const openEdit = (event: AdminEvent) => { setEditing(event); setForm({ name: event.name, description: event.description, date: event.date, start: event.start, end: event.end, venue: event.venue, organizer: event.organizer, origin: event.origin, audience: event.audience, department: event.department, method: event.method, identifierRange: event.identifierRange, cutoff: event.cutoff, status: event.status, requiredForAttendance: event.requiredForAttendance }); setError(''); };
-  const save = () => { try { if (editing) updateEvent(editing.id, form); else addEvent({ ...form, status: form.origin === 'Admin' ? form.status : 'Pending' }); setEditing(undefined); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Unable to save event.'); } };
+  const openEdit = (event: AdminEvent) => { setEditing(event); setForm({ name: event.name, description: event.description, date: event.date, start: event.start, end: event.end, venue: event.venue, organizer: event.organizer, origin: event.origin, audience: event.audience, department: event.department, method: event.method, identifierRange: event.identifierRange, cutoff: event.cutoff, status: event.status, requiredForAttendance: event.requiredForAttendance, latitude: event.latitude, longitude: event.longitude, locationImage: event.locationImage }); setError(''); };
+  const save = () => { try { if (form.date < localDateValue() && (!editing || form.date !== editing.date)) throw new Error('Choose today or a future date for the event.'); if (editing) updateEvent(editing.id, form); else addEvent({ ...form, status: form.origin === 'Admin' ? form.status : 'Pending' }); setEditing(undefined); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Unable to save event.'); } };
+  const publish = async (event: AdminEvent) => {
+    setPublishingId(event.id);
+    setPublishError('');
+    try {
+      const startsAt = new Date(`${event.date}T${event.start}`).toISOString();
+      const endsAt = new Date(`${event.date}T${event.end}`).toISOString();
+      const lateCutoff = new Date(`${event.date}T${event.cutoff}`).toISOString();
+      const published = await eventApi.publishAdminEvent({
+        name: event.name,
+        description: event.description,
+        starts_at: startsAt,
+        ends_at: endsAt,
+        venue: event.venue,
+        audience: event.audience === 'Student' ? 'student' : event.audience === 'Faculty' ? 'faculty' : 'all',
+        registration_required: false,
+        registration_deadline: null,
+        check_in_opens_at: startsAt,
+        check_in_closes_at: endsAt,
+        late_cutoff: lateCutoff,
+        attendance_method: event.method === 'QR Code' ? 'qr' : event.method === 'Barcode' ? 'barcode' : 'rfid',
+      });
+      updateEvent(event.id, { status: 'Approved', publishedEventId: published.id });
+    } catch (caught) {
+      setPublishError(caught instanceof Error ? caught.message : 'The event could not be published to student events.');
+    } finally {
+      setPublishingId('');
+    }
+  };
   const cancel = (event: AdminEvent) => { if (window.confirm(`Cancel ${event.name}?`)) cancelEvent(event.id); };
   return <section className="space-y-5"><div className="flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-300">Scheduling · Approval · Cancellation</p><h1 className="mt-2 text-3xl font-black text-white">Event management</h1><p className="mt-1 text-sm text-white/45">Create events, review Student and Faculty submissions, and keep attendance tracking visible.</p></div><Button onClick={openCreate}><Plus size={17} /> Create event</Button></div>
     <div className="flex flex-wrap gap-2"><button type="button" onClick={() => setFilter('All')} className={`rounded-xl px-4 py-2 text-xs font-semibold ${filter === 'All' ? 'bg-blue-500/15 text-blue-200 ring-1 ring-inset ring-blue-400/20' : 'bg-white/[0.04] text-white/50'}`}>All events</button><button type="button" onClick={() => setFilter('Student organization')} className={`rounded-xl px-4 py-2 text-xs font-semibold ${filter === 'Student organization' ? 'bg-blue-500/15 text-blue-200 ring-1 ring-inset ring-blue-400/20' : 'bg-white/[0.04] text-white/50'}`}>Student submissions</button><button type="button" onClick={() => setFilter('Faculty')} className={`rounded-xl px-4 py-2 text-xs font-semibold ${filter === 'Faculty' ? 'bg-blue-500/15 text-blue-200 ring-1 ring-inset ring-blue-400/20' : 'bg-white/[0.04] text-white/50'}`}>Faculty submissions</button></div>
-    <div className="grid gap-4 lg:grid-cols-2">{visible.map(event => <article key={event.id} className={panelClass + ' p-5'}><div className="flex items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/35">{event.id}</span><StatusBadge status={statusTone(event.status)}>{event.status}</StatusBadge></div><h2 className="mt-2 text-lg font-bold text-white">{event.name}</h2><p className="mt-1 text-sm leading-6 text-white/50">{event.description}</p></div><span className="rounded-xl bg-blue-400/10 p-2.5 text-blue-200"><CalendarDays size={19} /></span></div><div className="mt-5 grid grid-cols-2 gap-3 text-sm"><div><p className="text-xs text-white/35">Date & time</p><p className="mt-1 font-semibold text-white/75">{event.date} · {event.start}–{event.end}</p></div><div><p className="text-xs text-white/35">Venue</p><p className="mt-1 font-semibold text-white/75">{event.venue}</p></div><div><p className="text-xs text-white/35">Attendance</p><p className="mt-1 font-semibold text-white/75">{event.method} · {event.identifierRange}</p></div><div><p className="text-xs text-white/35">Late cut-off</p><p className="mt-1 font-semibold text-amber-200">{event.cutoff}</p></div></div><div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-white/[0.07] pt-4"><Button variant="glass" className="px-3 py-2 text-xs" onClick={() => openEdit(event)}><Edit3 size={14} /> Edit</Button>{event.status === 'Pending' && <Button className="px-3 py-2 text-xs" onClick={() => approveEvent(event.id)}><Check size={14} /> Approve</Button>}{event.status !== 'Cancelled' && event.status !== 'Completed' && <Button variant="glass" className="px-3 py-2 text-xs text-rose-200 hover:text-rose-100" onClick={() => cancel(event)}><X size={14} /> Cancel</Button>}</div></article>)}</div>
+    {publishError && <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-sm text-rose-200">{publishError}</p>}
+    <div className="grid gap-4 lg:grid-cols-2">{visible.map(event => <article key={event.id} className={panelClass + ' p-5'}><div className="flex items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/35">{event.id}</span><StatusBadge status={statusTone(event.status)}>{event.status}</StatusBadge></div><h2 className="mt-2 text-lg font-bold text-white">{event.name}</h2><p className="mt-1 text-sm leading-6 text-white/50">{event.description}</p></div><span className="rounded-xl bg-blue-400/10 p-2.5 text-blue-200"><CalendarDays size={19} /></span></div><div className="mt-5 grid grid-cols-2 gap-3 text-sm"><div><p className="text-xs text-white/35">Date & time</p><p className="mt-1 font-semibold text-white/75">{event.date} · {event.start}–{event.end}</p></div><div><p className="text-xs text-white/35">Venue</p><p className="mt-1 font-semibold text-white/75">{event.venue}</p></div><div><p className="text-xs text-white/35">Attendance</p><p className="mt-1 font-semibold text-white/75">{event.method} · {event.identifierRange}</p></div><div><p className="text-xs text-white/35">Late cut-off</p><p className="mt-1 font-semibold text-amber-200">{event.cutoff}</p></div></div><div className="mt-4"><p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-white/40">Event location</p>{event.locationImage ? <img src={event.locationImage} alt={`Location for ${event.name}`} className="max-h-64 w-full rounded-xl border border-white/[0.08] object-cover" /> : <GoogleMapPreview latitude={event.latitude} longitude={event.longitude} venue={event.venue} />}</div><div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-white/[0.07] pt-4"><Button variant="glass" className="px-3 py-2 text-xs" onClick={() => openEdit(event)}><Edit3 size={14} /> Edit</Button>{event.status === 'Pending' && <Button className="px-3 py-2 text-xs" disabled={publishingId === event.id} onClick={() => void publish(event)}><Check size={14} /> {publishingId === event.id ? 'Publishing…' : 'Approve & publish'}</Button>}{event.status === 'Approved' && !event.publishedEventId && <Button className="px-3 py-2 text-xs" disabled={publishingId === event.id} onClick={() => void publish(event)}><Check size={14} /> {publishingId === event.id ? 'Publishing…' : 'Publish to students'}</Button>}{event.status !== 'Cancelled' && event.status !== 'Completed' && <Button variant="glass" className="px-3 py-2 text-xs text-rose-200 hover:text-rose-100" onClick={() => cancel(event)}><X size={14} /> Cancel</Button>}</div></article>)}</div>
     {visible.length === 0 && <EmptyState message="No events match this submission filter." />}
     {editing !== undefined && <EventEditor form={form} setForm={setForm} onSubmit={save} onClose={() => setEditing(undefined)} error={error} />}
   </section>;
@@ -257,7 +279,7 @@ export default function AdminWorkspace() {
   const location = useLocation();
   const pathnameSection = location.pathname.split('/').pop();
   const requested = searchParams.get('section') || pathnameSection;
-  const section: AdminSection = requested === 'users' || requested === 'events' || requested === 'attendance' || requested === 'reports' || requested === 'feedback' || requested === 'approvals' || requested === 'settings' ? requested : 'dashboard';
+  const section: AdminSection = requested === 'users' || requested === 'events' || requested === 'attendance' || requested === 'reports' || requested === 'feedback' || requested === 'approvals' || requested === 'announcements' || requested === 'settings' || requested === 'archive' ? requested : 'dashboard';
   const go = (next: AdminSection) => { navigate(`/admin/${next === 'dashboard' ? 'dashboard' : next}`); };
   const { user, updateUser } = useAuth();
   const signedIn = user || AuthService.getCurrentUser();
@@ -265,6 +287,23 @@ export default function AdminWorkspace() {
     const updated = await eventApi.updateProfile(values);
     updateUser(updated);
   };
-  return <div className="min-h-full"><div className="mb-6 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Signed in as {signedIn?.name || 'Administrator'}</p><p className="mt-1 text-sm text-white/45">Required Admin functions · functional requirements workspace</p></div><nav className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-white/[0.03] p-1">{([{ id: 'dashboard', label: 'Dashboard' }, { id: 'approvals', label: 'Approvals' }, { id: 'users', label: 'Users' }, { id: 'events', label: 'Events' }, { id: 'attendance', label: 'Attendance' }, { id: 'reports', label: 'Reports' }, { id: 'feedback', label: 'Feedback' }, { id: 'settings', label: 'Settings' }] as const).map(item => <button type="button" key={item.id} onClick={() => go(item.id)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition ${section === item.id ? 'bg-blue-500/15 text-blue-200' : 'text-white/45 hover:bg-white/[0.06] hover:text-white'}`}>{item.label}</button>)}</nav></div>{section === 'dashboard' && <DashboardSection state={state} onNavigate={go} />}{section === 'approvals' && <AccountApprovals />}{section === 'users' && <UsersSection users={state.users} />}{section === 'events' && <EventsSection events={state.events} />}{section === 'attendance' && <AttendanceSection events={state.events} attendance={state.attendance} users={state.users} />}{section === 'reports' && <ReportsSection state={state} />}{section === 'feedback' && <FeedbackSection state={state} />}{section === 'settings' && signedIn && <SettingsPanel user={signedIn} onSaveProfile={saveProfile} />}</div>;
+  return <div className="min-h-full">
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Signed in as {signedIn?.name || 'Administrator'}</p>
+      <button type="button" onClick={() => go(section === 'archive' ? 'users' : 'archive')} className="inline-flex items-center gap-2 rounded-xl border border-orange-300/20 bg-orange-300/[0.06] px-4 py-2.5 text-sm font-semibold text-orange-100 transition hover:bg-orange-300/[0.12]">
+        <Archive size={16} /> {section === 'archive' ? 'User management' : 'Archive'}
+      </button>
+    </div>
+    {section === 'dashboard' && <DashboardSection state={state} onNavigate={go} />}
+    {section === 'approvals' && <AccountApprovals />}
+    {section === 'users' && <UserManagement />}
+    {section === 'archive' && <ArchivedAccounts />}
+    {section === 'events' && <EventsSection events={state.events} />}
+    {section === 'attendance' && <AttendanceSection events={state.events} attendance={state.attendance} users={state.users} />}
+    {section === 'reports' && <ReportsSection state={state} />}
+    {section === 'feedback' && <FeedbackSection state={state} />}
+    {section === 'announcements' && <AnnouncementsSection />}
+    {section === 'settings' && signedIn && <SettingsPanel user={signedIn} onSaveProfile={saveProfile} />}
+  </div>;
 }
 

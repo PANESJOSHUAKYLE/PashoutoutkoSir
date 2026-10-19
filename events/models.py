@@ -25,6 +25,9 @@ class UserProfile(models.Model):
     )
     dark_mode = models.BooleanField(default=True)
     signup_method = models.CharField(max_length=16, default="admin")
+    google_subject = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    is_archived = models.BooleanField(default=False)
+    archived_was_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:
         return f"{self.display_name} ({self.user.username})"
@@ -245,7 +248,7 @@ class AttendanceCode(models.Model):
 
 
 class AppSettings(models.Model):
-    google_auth_enabled = models.BooleanField(default=True)
+    google_auth_enabled = models.BooleanField(default=False)
     guest_signup_enabled = models.BooleanField(default=True)
     email_notifications_enabled = models.BooleanField(default=True)
     qr_checkin_enabled = models.BooleanField(default=True)
@@ -322,5 +325,48 @@ class AuditLog(models.Model):
 
     class Meta:
         ordering = ("-created_at",)
+
+
+class Announcement(models.Model):
+    class Audience(models.TextChoices):
+        ALL = "all", "Students and faculty"
+        STUDENT = "student", "Students"
+        FACULTY = "faculty", "Faculty"
+
+    title = models.CharField(max_length=180)
+    body = models.TextField()
+    audience = models.CharField(
+        max_length=16, choices=Audience.choices, default=Audience.ALL
+    )
+    event = models.ForeignKey(
+        Event, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="announcements",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="posted_announcements",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+
+class AnnouncementRead(models.Model):
+    announcement = models.ForeignKey(
+        Announcement, on_delete=models.CASCADE, related_name="reads"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="announcement_reads",
+    )
+    read_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("announcement", "user"), name="unique_announcement_read"
+            )
+        ]
 
 

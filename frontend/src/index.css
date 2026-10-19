@@ -8,6 +8,9 @@
     --app-bg: #090b10;
     --app-surface: #11151d;
     --app-border: rgba(255, 255, 255, 0.075);
+    --text-gradient-start: #fed7aa;
+    --text-gradient-end: #f97316;
+    --app-readable-text: #fed7aa;
   }
 
   html {
@@ -18,13 +21,13 @@
   body {
     @apply m-0 min-h-screen bg-[#090b10] font-sans text-slate-100 antialiased;
     background-image:
-      radial-gradient(circle at 12% -10%, rgba(59, 130, 246, 0.08), transparent 30%),
-      radial-gradient(circle at 90% 110%, rgba(225, 29, 72, 0.055), transparent 32%);
+      radial-gradient(circle at 12% -10%, rgba(251, 146, 60, 0.12), transparent 30%),
+      radial-gradient(circle at 90% 110%, rgba(253, 186, 116, 0.1), transparent 32%);
   }
 
   button, input, select, textarea { font: inherit; }
   button, a { -webkit-tap-highlight-color: transparent; }
-  ::selection { background: rgba(59, 130, 246, 0.35); color: #fff; }
+  ::selection { background: rgba(251, 146, 60, 0.35); color: #fff; }
 }
 
 @layer components {
@@ -36,23 +39,36 @@
     backdrop-filter: blur(18px);
   }
 
-  .app-card-hover { transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease; }
-  .app-card-hover:hover { transform: translateY(-2px); border-color: rgba(96, 165, 250, 0.18); background: rgba(23, 28, 38, 0.94); }
+  .app-card-hover { transition: transform 220ms cubic-bezier(.2,.7,.2,1), border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease; }
+  .app-card-hover:hover { transform: translateY(-3px); border-color: rgba(251, 146, 60, 0.3); background: rgba(23, 28, 38, 0.94); box-shadow: 0 20px 48px rgba(0, 0, 0, .22); }
+  .app-page-enter { animation: app-page-enter 420ms cubic-bezier(.2,.7,.2,1) both; }
+  .auth-card { animation: auth-card-enter 520ms cubic-bezier(.2,.75,.25,1) both; }
+  .app-button-primary, .app-button-secondary { transition: transform 160ms ease, filter 180ms ease, box-shadow 180ms ease, background-color 180ms ease; }
+  .app-button-primary:hover { transform: translateY(-1px); box-shadow: 0 15px 30px rgba(194, 65, 12, .28); }
+  .app-button-primary:active, .app-button-secondary:active { transform: translateY(0) scale(.98); }
+  .app-input { transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease; }
+  @keyframes app-page-enter { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes auth-card-enter { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
   .app-page-title { @apply text-2xl font-bold tracking-[-0.025em] text-white sm:text-3xl; }
   .app-page-subtitle { @apply mt-1 text-sm leading-6 text-white/40; }
   .app-section-title { @apply text-base font-semibold tracking-tight text-white; }
   .app-label { @apply mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-white/40; }
 
   .app-input {
-    @apply w-full rounded-xl border border-white/[0.09] bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-blue-400/50 focus:bg-white/[0.06] focus:ring-4 focus:ring-blue-400/10;
+    @apply w-full rounded-xl border border-white/[0.09] bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:bg-white/[0.06] focus:ring-4;
+    --tw-ring-color: rgba(251, 146, 60, 0.18);
   }
 
   .app-button-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/30 outline-none transition hover:bg-blue-400 focus-visible:ring-2 focus-visible:ring-blue-300 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-lg outline-none transition focus-visible:ring-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55;
+    background-image: linear-gradient(110deg, #fdba74, #f97316);
+    box-shadow: 0 12px 26px rgba(194, 65, 12, 0.2);
   }
 
+  .app-button-primary:hover { filter: brightness(1.06); }
+
   .app-button-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white/70 outline-none transition hover:border-white/[0.15] hover:bg-white/[0.07] hover:text-white focus-visible:ring-2 focus-visible:ring-blue-400/60 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white/70 outline-none transition hover:border-white/[0.15] hover:bg-white/[0.07] hover:text-white focus-visible:ring-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .app-table-wrap { @apply overflow-x-auto; }
@@ -100,22 +116,22 @@
   .app-workspace [class~="border-slate-100"],
   .app-workspace [class~="border-slate-200"],
   .app-workspace [class~="border-slate-300"] { border-color: rgba(255, 255, 255, .08) !important; }
-  .app-workspace [class*="bg-orange-500"] { background-color: #2563eb !important; }
+  .app-workspace [class*="bg-orange-500"] { background-color: #f97316 !important; }
   .app-workspace [class*="bg-[#EA580C]"],
-  .app-workspace [class*="bg-[#F97316]"] { background-color: rgba(37, 99, 235, .12) !important; }
+  .app-workspace [class*="bg-[#F97316]"] { background-color: rgba(249, 115, 22, .12) !important; }
   .app-workspace button[class*="bg-[#EA580C]"],
-  .app-workspace button[class*="bg-[#F97316]"] { background-color: #2563eb !important; }
+  .app-workspace button[class*="bg-[#F97316]"] { background-color: #f97316 !important; }
   .app-workspace [class~="text-orange-600"],
   .app-workspace [class~="text-orange-700"],
   .app-workspace [class~="text-orange-800"],
   .app-workspace [class*="text-[#EA580C]"],
-  .app-workspace [class*="text-[#F97316]"] { color: #93c5fd !important; }
+  .app-workspace [class*="text-[#F97316]"] { color: #c2410c !important; }
   .app-workspace input, .app-workspace select, .app-workspace textarea { color: #f8fafc; }
   .app-workspace option { background: #11151d; color: #f8fafc; }
 
   /* Keep the sign-in surface independent from the dark workspace overrides. */
   .auth-screen {
-    background-image: radial-gradient(circle at 15% 0%, rgba(59, 130, 246, .18), transparent 34%), radial-gradient(circle at 90% 100%, rgba(219, 39, 119, .10), transparent 32%);
+    background-image: radial-gradient(circle at 15% 0%, rgba(251, 146, 60, .2), transparent 34%), radial-gradient(circle at 90% 100%, rgba(253, 186, 116, .15), transparent 32%);
     color: #f8fafc;
   }
 
@@ -123,6 +139,25 @@
     background: rgba(17, 21, 29, .96);
     color: #f8fafc;
   }
+
+  .app-workspace [class*="bg-blue-"]:not(.app-button-primary),
+  .auth-screen [class*="bg-blue-"] { background-color: rgba(251, 146, 60, 0.14) !important; }
+  .app-workspace [class*="from-blue-"] {
+    --tw-gradient-from: #fdba74 var(--tw-gradient-from-position);
+    --tw-gradient-to: rgb(253 186 116 / 0%) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+  }
+  .app-workspace [class*="to-indigo-"] { --tw-gradient-to: #f97316 var(--tw-gradient-to-position); }
+  .app-workspace [class*="text-blue-"],
+  .auth-screen [class*="text-blue-"] { color: #fb923c !important; }
+  .app-workspace [class*="border-blue-"],
+  .auth-screen [class*="border-blue-"] { border-color: rgba(251, 146, 60, 0.38) !important; }
+  .app-workspace [class*="focus:border-blue-"]:focus,
+  .auth-screen [class*="focus:border-blue-"]:focus { border-color: #fb923c !important; }
+  .app-workspace [class*="focus:ring-blue-"]:focus,
+  .auth-screen [class*="focus:ring-blue-"]:focus { --tw-ring-color: rgba(251, 146, 60, 0.28) !important; }
+  .app-workspace [class*="ring-blue-"],
+  .auth-screen [class*="ring-blue-"] { --tw-ring-color: rgba(251, 146, 60, 0.32); }
 
   .auth-screen input {
     color-scheme: dark;
@@ -148,22 +183,187 @@ html.light {
   --app-bg: #eef2f7;
   --app-surface: #ffffff;
   --app-border: rgba(15, 23, 42, 0.08);
+  --text-gradient-start: #7c2d12;
+  --text-gradient-end: #c2410c;
+  --app-readable-text: #7c2d12;
 }
 
 html.light body {
   @apply bg-[#eef2f7] text-slate-800;
-  background-image: radial-gradient(circle at 12% -10%, rgba(59, 130, 246, 0.12), transparent 30%);
+  background-image: radial-gradient(circle at 12% -10%, rgba(251, 146, 60, 0.14), transparent 30%);
 }
 
 html.light .app-page-title,
 html.light .app-section-title { @apply text-slate-900; }
 html.light .app-page-subtitle,
-html.light .app-label { color: rgba(15, 23, 42, 0.45); }
+html.light .app-label { color: rgba(15, 23, 42, 0.68); }
 html.light .app-card { background: #ffffff; color: #0f172a; }
 html.light .app-input { @apply border-slate-200 bg-white text-slate-900 placeholder:text-slate-400; }
 html.light .app-workspace { background: #eef2f7 !important; color: #0f172a; }
 html.light .auth-screen { color: #0f172a; }
 html.light .auth-card { background: rgba(255, 255, 255, 0.96); color: #0f172a; }
+
+html.light .app-page-subtitle { color: rgba(15, 23, 42, 0.68); }
+html.light .app-workspace [class~="text-white"],
+html.light .app-workspace [class*="text-white/"],
+html.light .app-workspace [class~="text-slate-100"],
+html.light .app-workspace [class~="text-slate-200"],
+html.light .app-workspace [class~="text-slate-300"],
+html.light .app-workspace [class~="text-slate-400"] { color: #1e293b !important; }
+html.light .app-workspace button.app-button-primary,
+html.light .app-workspace button.app-button-primary * { color: #fff !important; }
+html.light .app-workspace [class*="border-white/"] { border-color: rgba(15, 23, 42, 0.14) !important; }
+html.light .app-workspace [class*="bg-[#11151d]"],
+html.light .app-workspace [class*="bg-[#151a23]"] { background-color: #fff !important; }
+html.light .app-workspace [class~="text-blue-100"],
+html.light .app-workspace [class~="text-blue-200"],
+html.light .app-workspace [class~="text-blue-300"],
+html.light .app-workspace [class*="text-blue-"] { color: #c2410c !important; }
+html.light .app-workspace [class~="text-emerald-100"],
+html.light .app-workspace [class~="text-emerald-200"],
+html.light .app-workspace [class~="text-green-200"] { color: #047857 !important; }
+html.light .app-workspace [class~="text-amber-100"],
+html.light .app-workspace [class~="text-amber-200"] { color: #92400e !important; }
+html.light .app-workspace [class~="text-rose-100"],
+html.light .app-workspace [class~="text-rose-200"] { color: #be123c !important; }
+
+html.light .auth-screen [class~="text-white"],
+html.light .auth-screen [class*="text-white/"],
+html.light .auth-screen [class~="text-slate-300"],
+html.light .auth-screen [class~="text-slate-400"] { color: #334155 !important; }
+html.light .auth-screen .app-button-primary,
+html.light .auth-screen .app-button-primary * { color: #fff !important; }
+html.light .auth-screen input {
+  color: #0f172a;
+  color-scheme: light;
+  caret-color: #1d4ed8;
+  border-color: #cbd5e1;
+  background-color: #f8fafc;
+}
+html.light .auth-screen input::placeholder { color: #64748b; }
+html.light .auth-screen [class*="text-blue-"] { color: #c2410c !important; }
+html.light .auth-screen [class*="border-white/"] { border-color: rgba(15, 23, 42, 0.16) !important; }
+
+.app-workspace :is(h1, h2, h3, h4, p, a, label, li, td, th, strong, small, span, legend, dt, dd, button:not(.app-button-primary)),
+.auth-screen :is(h1, h2, h3, h4, p, a, label, li, strong, small, span, button:not(.app-button-primary)) {
+  background-image: none;
+  color: var(--app-readable-text) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+.app-workspace .app-button-primary *,
+.auth-screen .app-button-primary * {
+  background-image: none !important;
+  background-clip: border-box;
+  -webkit-background-clip: border-box;
+  color: #fff !important;
+  -webkit-text-fill-color: #fff;
+}
+
+/* Keep login fields visually aligned and make their orange outlines and hints
+   clear in both color themes. */
+.auth-screen input {
+  border-color: rgba(251, 146, 60, .42);
+  caret-color: #f97316;
+  text-align: center;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.auth-screen p { text-align: center; }
+
+.auth-screen input:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, .22);
+}
+
+.auth-screen input::placeholder {
+  color: #cbd5e1;
+  opacity: 1;
+  text-align: center;
+}
+
+html.light .auth-screen input {
+  border-color: rgba(194, 65, 12, .4);
+  caret-color: #c2410c;
+}
+
+html.light .auth-screen input:focus {
+  border-color: #c2410c;
+  box-shadow: 0 0 0 3px rgba(194, 65, 12, .16);
+}
+
+html.light .auth-screen input::placeholder { color: #7c2d12; }
+
+/* In light mode use solid, high-contrast text. Clipped gradient text can be
+   inherited by nested controls and disappear in some browsers. */
+html.light .app-workspace :is(h1, h2, h3, h4, p, a, label, li, td, th, strong, small, span, legend, dt, dd, button:not(.app-button-primary)),
+html.light .auth-screen :is(h1, h2, h3, h4, p, a, label, li, strong, small, span, button:not(.app-button-primary)) {
+  background-image: none !important;
+  color: #7c2d12 !important;
+  -webkit-text-fill-color: #7c2d12 !important;
+}
+
+html.light .app-workspace input,
+html.light .app-workspace select,
+html.light .app-workspace textarea,
+html.light .auth-screen input {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+html.light .app-workspace button.app-button-primary,
+html.light .app-workspace button.app-button-primary *,
+html.light .auth-screen .app-button-primary,
+html.light .auth-screen .app-button-primary * {
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+}
+
+/* Carry light mode through the shell, navigation, overlays, and page panels. */
+html.light .auth-screen {
+  background-color: #f1f5f9 !important;
+  background-image: radial-gradient(circle at 15% 0%, rgba(251, 146, 60, .12), transparent 34%), radial-gradient(circle at 90% 100%, rgba(253, 186, 116, .12), transparent 32%);
+}
+
+html.light .auth-card { background: rgba(255, 255, 255, .98) !important; }
+
+html.light .app-workspace aside,
+html.light .app-workspace header {
+  background-color: rgba(255, 255, 255, .96) !important;
+  border-color: rgba(15, 23, 42, .12) !important;
+  color: #0f172a;
+}
+
+html.light .app-workspace [class*="bg-[#0d1016]"],
+html.light .app-workspace [class*="bg-[#11151d]"],
+html.light .app-workspace [class*="bg-[#151a23]"] {
+  background-color: #fff !important;
+}
+
+html.light .app-workspace [class~="bg-white"],
+html.light .app-workspace .app-card,
+html.light .app-workspace .glass-card {
+  background-color: #fff !important;
+}
+
+html.light .app-workspace [class~="bg-slate-50"],
+html.light .app-workspace [class~="bg-slate-100"] {
+  background-color: #f1f5f9 !important;
+}
+
+html.light .app-workspace [class*="bg-white/"] {
+  background-color: rgba(255, 255, 255, .78) !important;
+}
+
+html.light .app-workspace input:not([type="checkbox"]):not([type="radio"]),
+html.light .app-workspace select,
+html.light .app-workspace textarea {
+  background-color: #fff !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.light .app-workspace input::placeholder,
+html.light .app-workspace textarea::placeholder { color: #64748b !important; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

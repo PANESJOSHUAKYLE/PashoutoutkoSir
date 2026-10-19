@@ -1,5 +1,13 @@
+import hashlib
+import logging
+
+from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login, logout
+from django.contrib.auth.tokens import default_token_generator
 from django.core.cache import cache
+from django.core.mail import send_mail
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.db.models import Q
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import csrf_protect
@@ -7,7 +15,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from .account_services import password_matches_request, record_audit
+from .account_services import password_matches_request, record_audit, validate_new_password
 from .models import AccountRequest, UserProfile
 from .serializers import AuthUserSerializer, ProfileUpdateSerializer
 
@@ -98,6 +106,63 @@ def login_view(request):
         actor=authenticated.username,
     )
     return Response(AuthUserSerializer(authenticated).data)
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+@csrf_protect
+def password_reset_request(request):
+    email = str(request.data.get("email", "")).strip().lower()
+    digest = hashlib.sha256(email.encode("utf-8")).hexdigest()
+    ip = request.META.get("REMOTE_ADDR", "")
+    key = f"password-reset:{ip}:{digest}"
+    generic = "If an active account uses that email, we’ll send a password reset link."
+    if cache.get(key, 0) >= 3:
+        return Response({"message": generic}, status=200)
+    cache.set(key, cache.get(key, 0) + 1, 60 * 15)
+
+    user = User.objects.filter(email__iexact=email, is_active=True).first()
+    if user and user.has_usable_password():
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        base_url = settings.FRONTEND_BASE_URL.rstrip("/")
+        reset_url = f"{base_url}/?action=reset&uid={uid}&token={token}"
+        try:
+            send_mail(
+                "Reset your COT Event Attendance password",
+                f"Use this link to choose a new password. It expires after use.\n\n{reset_url}\n\nIf you did not request this, you can ignore this email.",
+                settings.DEFAULT_FROM_EMAIL,
+                [user.email],
+                fail_silently=False,
+            )
+        except Exception:
+            # Do not disclose account existence or email transport details publicly.
+            logging.getLogger(__name__).exception("Password reset email could not be sent.")
+    return Response({"message": generic}, status=200)
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+@csrf_protect
+def password_reset_confirm(request):
+    uid = str(request.data.get("uid", ""))
+    token = str(request.data.get("token", ""))
+    password = str(request.data.get("password", ""))
+    try:
+        user_id = force_str(urlsafe_base64_decode(uid))
+        user = User.objects.get(pk=user_id, is_active=True)
+    except (ValueError, TypeError, OverflowError, User.DoesNotExist):
+        user = None
+    if not user or not default_token_generator.check_token(user, token):
+        return Response({"detail": "This password reset link is invalid or has expired. Request a new link."}, status=400)
+    try:
+        validate_new_password(password, user=user)
+    except ValueError as exc:
+        return Response({"detail": str(exc)}, status=400)
+    user.set_password(password)
+    user.save(update_fields=["password"])
+    record_audit("password_reset_completed", {"username": user.username}, actor=user.username)
+    return Response({"message": "Your password has been changed. You can now sign in."})
 
 
 @api_view(["POST"])

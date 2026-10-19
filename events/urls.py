@@ -5,6 +5,8 @@ from . import account_views, auth_views, event_views, report_views
 urlpatterns = [
     path("auth/csrf/", auth_views.csrf, name="auth-csrf"),
     path("auth/login/", auth_views.login_view, name="auth-login"),
+    path("auth/password-reset/", auth_views.password_reset_request, name="password-reset-request"),
+    path("auth/password-reset/confirm/", auth_views.password_reset_confirm, name="password-reset-confirm"),
     path("auth/logout/", auth_views.logout_view, name="auth-logout"),
     path("auth/me/", auth_views.me, name="auth-me"),
     path("auth/signup/", account_views.signup_view, name="auth-signup"),
@@ -23,6 +25,17 @@ urlpatterns = [
         name="account-request-reject",
     ),
     path("admin/guest-users/", account_views.guest_user_list, name="guest-user-list"),
+    path("admin/guest-users/archived/", account_views.archived_guest_user_list, name="archived-guest-user-list"),
+    path(
+        "admin/guest-users/<str:username>/password-reset/",
+        account_views.guest_user_password_reset,
+        name="guest-user-password-reset",
+    ),
+    path(
+        "admin/guest-users/<str:username>/<str:action>/",
+        account_views.guest_user_archive,
+        name="guest-user-archive",
+    ),
     path(
         "admin/guest-users/<str:username>/",
         account_views.guest_user_update,
@@ -30,6 +43,10 @@ urlpatterns = [
     ),
     path("profile/", auth_views.profile, name="profile"),
     path("events/", event_views.event_list, name="event-list"),
+    path("admin/events/publish/", event_views.publish_admin_event, name="admin-event-publish"),
+    path("announcements/", event_views.announcement_list, name="announcement-list"),
+    path("announcements/<int:announcement_id>/read/", event_views.announcement_mark_read, name="announcement-mark-read"),
+    path("admin/announcements/", event_views.admin_announcements, name="admin-announcements"),
     path("events/managed/", event_views.managed_event_list, name="managed-event-list"),
     path("events/<uuid:event_id>/registrations/", event_views.register_event, name="event-register"),
     path("events/<uuid:event_id>/check-in-code/", event_views.check_in_code, name="event-check-in-code"),

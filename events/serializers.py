@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import AppSettings, Event, EventRegistration, UserProfile
+from .models import Announcement, AppSettings, Event, EventRegistration, UserProfile
 
 User = get_user_model()
 
@@ -15,6 +15,7 @@ class AuthUserSerializer(serializers.ModelSerializer):
     department = serializers.CharField(source="profile.department", allow_blank=True)
     dark_mode = serializers.BooleanField(source="profile.dark_mode")
     signup_method = serializers.CharField(source="profile.signup_method")
+    is_archived = serializers.BooleanField(source="profile.is_archived")
 
     class Meta:
         model = User
@@ -22,12 +23,14 @@ class AuthUserSerializer(serializers.ModelSerializer):
             "id",
             "username",
             "email",
+            "is_active",
             "name",
             "role",
             "phone",
             "department",
             "dark_mode",
             "signup_method",
+            "is_archived",
         )
         read_only_fields = fields
 
@@ -49,6 +52,74 @@ class ProfileUpdateSerializer(serializers.Serializer):
         if not attrs["name"]:
             raise serializers.ValidationError({"name": "Name is required."})
         return attrs
+
+
+class AdminEventPublishSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Event
+        fields = (
+            "name",
+            "description",
+            "starts_at",
+            "ends_at",
+            "venue",
+            "audience",
+            "registration_required",
+            "registration_deadline",
+            "check_in_opens_at",
+            "check_in_closes_at",
+            "late_cutoff",
+            "attendance_method",
+        )
+
+    def validate(self, attrs):
+        starts_at = attrs.get("starts_at", getattr(self.instance, "starts_at", None))
+        ends_at = attrs.get("ends_at", getattr(self.instance, "ends_at", None))
+        check_in_opens_at = attrs.get(
+            "check_in_opens_at", getattr(self.instance, "check_in_opens_at", None)
+        )
+        check_in_closes_at = attrs.get(
+            "check_in_closes_at", getattr(self.instance, "check_in_closes_at", None)
+        )
+        if starts_at and ends_at and ends_at <= starts_at:
+            raise serializers.ValidationError({"ends_at": "Event end must be after its start."})
+        if check_in_opens_at and check_in_closes_at and check_in_closes_at <= check_in_opens_at:
+            raise serializers.ValidationError(
+                {"check_in_closes_at": "Check-in must close after it opens."}
+            )
+        return attrs
+
+
+class AnnouncementSerializer(serializers.ModelSerializer):
+    event_id = serializers.UUIDField(source="event.id", read_only=True, allow_null=True)
+    event_name = serializers.CharField(source="event.name", read_only=True, allow_null=True)
+    is_read = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Announcement
+        fields = ("id", "title", "body", "audience", "event_id", "event_name", "created_at", "is_read")
+
+    def get_is_read(self, announcement):
+        user = self.context["request"].user
+        return announcement.reads.filter(user=user).exists()
+
+
+class AdminAnnouncementCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Announcement
+        fields = ("title", "body", "audience")
+
+    def validate_title(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("A title is required.")
+        return value
+
+    def validate_body(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Announcement text is required.")
+        return value
 
 
 class EventContextSerializer(serializers.ModelSerializer):

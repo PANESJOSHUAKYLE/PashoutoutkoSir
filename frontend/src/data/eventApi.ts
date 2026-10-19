@@ -1,5 +1,6 @@
 import type {
   AccountRequestRow,
+  AnnouncementRecord,
   AppIntegrationSettings,
   AttendanceConfirmation,
   AttendanceMethod,
@@ -115,7 +116,19 @@ export const eventApi = {
       body: JSON.stringify(values),
     });
   },
-  async googleAuth(values: { email: string; name: string; phone?: string; intent: 'login' | 'signup' }) {
+  async requestPasswordReset(email: string) {
+    return requestJson<{ message: string }>("/auth/password-reset/", {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+  async confirmPasswordReset(values: { uid: string; token: string; password: string }) {
+    return requestJson<{ message: string }>("/auth/password-reset/confirm/", {
+      method: 'POST',
+      body: JSON.stringify(values),
+    });
+  },
+  async googleAuth(values: { credential: string; intent: 'login' | 'signup' }) {
     return requestJson<AuthUser | { status: string; message: string }>('/auth/google/', {
       method: 'POST',
       body: JSON.stringify(values),
@@ -133,10 +146,10 @@ export const eventApi = {
   accountRequests() {
     return requestJson<AccountRequestRow[]>('/admin/account-requests/');
   },
-  approveAccountRequest(id: number, role: 'student' | 'faculty', department: string) {
+  approveAccountRequest(id: number, role: 'student' | 'faculty', department: string, profile: { name: string; email: string; phone: string }) {
     return requestJson<{ status: string; username: string; role: string; email: string }>(
       `/admin/account-requests/${id}/approve/`,
-      { method: 'POST', body: JSON.stringify({ role, department }) },
+      { method: 'POST', body: JSON.stringify({ role, department, ...profile }) },
     );
   },
   rejectAccountRequest(id: number) {
@@ -145,11 +158,26 @@ export const eventApi = {
   guestUsers() {
     return requestJson<AuthUser[]>('/admin/guest-users/');
   },
-  updateGuestUser(username: string, values: Partial<Pick<AuthUser, 'name' | 'email' | 'phone' | 'department' | 'role'>>) {
+  updateGuestUser(username: string, values: Partial<Pick<AuthUser, 'name' | 'email' | 'phone' | 'department' | 'role' | 'is_active'>>) {
     return requestJson<AuthUser>(`/admin/guest-users/${encodeURIComponent(username)}/`, {
       method: 'PATCH',
       body: JSON.stringify(values),
     });
+  },
+  archivedGuestUsers() {
+    return requestJson<AuthUser[]>('/admin/guest-users/archived/');
+  },
+  archiveGuestUser(username: string) {
+    return requestJson<AuthUser>(`/admin/guest-users/${encodeURIComponent(username)}/archive/`, { method: 'POST' });
+  },
+  restoreGuestUser(username: string) {
+    return requestJson<AuthUser>(`/admin/guest-users/${encodeURIComponent(username)}/restore/`, { method: 'POST' });
+  },
+  resetGuestPassword(username: string) {
+    return requestJson<{ temporary_password: string }>(
+      `/admin/guest-users/${encodeURIComponent(username)}/password-reset/`,
+      { method: 'POST' },
+    );
   },
   session() {
     return requestJson<AuthUser>('/auth/me/');
@@ -165,6 +193,40 @@ export const eventApi = {
   },
   events() {
     return requestJson<EventRecord[]>('/events/');
+  },
+  announcements() {
+    return requestJson<AnnouncementRecord[]>('/announcements/');
+  },
+  markAnnouncementRead(id: number) {
+    return requestJson<{ is_read: boolean }>(`/announcements/${id}/read/`, { method: 'POST' });
+  },
+  adminAnnouncements() {
+    return requestJson<AnnouncementRecord[]>('/admin/announcements/');
+  },
+  createAnnouncement(values: Pick<AnnouncementRecord, 'title' | 'body' | 'audience'>) {
+    return requestJson<AnnouncementRecord>('/admin/announcements/', {
+      method: 'POST',
+      body: JSON.stringify(values),
+    });
+  },
+  publishAdminEvent(values: {
+    name: string;
+    description: string;
+    starts_at: string;
+    ends_at: string;
+    venue: string;
+    audience: 'all' | 'student' | 'faculty';
+    registration_required: boolean;
+    registration_deadline: string | null;
+    check_in_opens_at: string;
+    check_in_closes_at: string;
+    late_cutoff: string;
+    attendance_method: AttendanceMethod;
+  }) {
+    return requestJson<{ id: string }>('/admin/events/publish/', {
+      method: 'POST',
+      body: JSON.stringify(values),
+    });
   },
   managedEvents() {
     return requestJson<EventRecord[]>('/events/managed/');

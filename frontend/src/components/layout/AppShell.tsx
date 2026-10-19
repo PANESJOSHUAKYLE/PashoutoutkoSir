@@ -2,6 +2,7 @@ import { useEffect, useState, type ElementType, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
+  Bell,
   CalendarDays,
   ChevronLeft,
   ClipboardCheck,
@@ -10,15 +11,19 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  Moon,
   ShieldCheck,
   QrCode,
   Settings,
+  Sun,
   Users,
   X,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import type { UserType } from '../../data/authService';
 import type { UserRole } from '../../types/eventAttendance';
+import NotificationBell from './NotificationBell';
 
 export type AppNavItem = { label: string; path: string; icon: ElementType };
 type AppShellProps = { children: ReactNode; role: UserType };
@@ -57,6 +62,7 @@ const navByRole: Record<UserRole, AppNavItem[]> = {
     { label: 'Event reports', path: '/admin/reports', icon: FileText },
     { label: 'Feedback & evaluations', path: '/admin/feedback', icon: MessageSquare },
     { label: 'Account approvals', path: '/admin/approvals', icon: ShieldCheck },
+    { label: 'Announcements', path: '/admin/announcements', icon: Bell },
     { label: 'Settings', path: '/admin/settings', icon: Settings },
   ],
 };
@@ -68,6 +74,7 @@ export default function AppShell({ children, role }: AppShellProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout: endSession } = useAuth();
+  const { darkMode, setDarkMode } = useTheme();
   const resolvedRole: UserRole = user?.role || (role === 'lecturer' ? 'faculty' : role);
   const navItems = navByRole[resolvedRole];
   const displayName = user?.name || 'COT User';
@@ -111,9 +118,23 @@ export default function AppShell({ children, role }: AppShellProps) {
     <div className="flex min-w-0 flex-1 flex-col lg:h-screen">
       <header className="sticky top-0 z-30 flex h-20 shrink-0 items-center justify-between border-b border-white/[0.07] bg-[#090b10]/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-3"><button type="button" aria-label="Open navigation" className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-2.5 text-white/60 transition hover:bg-white/[0.08] hover:text-white lg:hidden" onClick={() => setMobileOpen(true)}><Menu size={20} /></button><div className="min-w-0"><p className="truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-white/30">College of Technologies</p><p className="truncate text-base font-semibold text-white/90">{activeItem?.label || roleLabels[resolvedRole]}</p></div></div>
-        <div className="flex items-center gap-3"><div className="hidden items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-400/[0.06] px-3 py-1.5 text-xs text-emerald-300 sm:flex"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />Secure session</div><div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-xs font-bold text-white/80 ring-1 ring-white/10">{getInitials(displayName)}</div></div>
+        <div className="flex items-center gap-3">
+          <NotificationBell role={resolvedRole} />
+          <button
+            type="button"
+            onClick={() => void setDarkMode(!darkMode)}
+            aria-label={`Switch to ${darkMode ? 'light' : 'dark'} mode`}
+            title={`Switch to ${darkMode ? 'light' : 'dark'} mode`}
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-orange-300/25 bg-white/[0.04] px-3 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"
+          >
+            {darkMode ? <Sun size={17} /> : <Moon size={17} />}
+            <span className="hidden sm:inline">{darkMode ? 'Light mode' : 'Dark mode'}</span>
+          </button>
+          <div className="hidden items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-400/[0.06] px-3 py-1.5 text-xs text-emerald-300 sm:flex"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />Secure session</div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-xs font-bold text-white/80 ring-1 ring-white/10">{getInitials(displayName)}</div>
+        </div>
       </header>
-      <main id="main-content" className="app-scrollbar min-w-0 flex-1 overflow-y-auto"><div className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8">{children}</div></main>
+      <main id="main-content" className="app-scrollbar min-w-0 flex-1 overflow-y-auto"><div className="app-page-enter mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8">{children}</div></main>
     </div>
   </div>;
 }

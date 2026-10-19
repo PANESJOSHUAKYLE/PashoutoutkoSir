@@ -43,8 +43,10 @@ export interface AdminEvent {
   requiredForAttendance: boolean;
   createdAt: string;
   organizerId?: string;
+  publishedEventId?: string;
   latitude?: number;
   longitude?: number;
+  locationImage?: string;
   radiusMeters?: number;
   registrationRequired?: boolean;
   targetPrograms?: string[];
